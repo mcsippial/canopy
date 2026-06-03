@@ -7,6 +7,10 @@ export interface Organization {
   stripe_subscription_id?: string
   coverage_limit?: number
   covered_users_limit?: number
+  monthly_token_limit?: number
+  monthly_action_limit?: number
+  tokens_used_this_period?: number
+  actions_used_this_period?: number
   created_at: string
   updated_at: string
 }
@@ -32,6 +36,17 @@ export interface Agent {
   risk_assessment?: Record<string, unknown>
   status: 'active' | 'review' | 'suspended'
   daily_actions: number
+  // New usage-based fields
+  model_name?: string
+  model_provider?: 'openai' | 'anthropic' | 'google' | 'mistral' | 'other'
+  avg_tokens_per_action?: number
+  pricing_model?: 'per_token' | 'per_call' | 'per_minute' | 'flat_rate' | 'unknown'
+  max_actions_per_day?: number
+  deployment_type?: 'realtime' | 'batch' | 'scheduled' | 'event_driven'
+  uses_tool_calls?: boolean
+  max_tool_call_depth?: number
+  human_in_loop?: boolean
+  detection_lag_minutes?: number
   created_at: string
   updated_at: string
 }
@@ -74,6 +89,14 @@ export interface Claim {
   status: 'submitted' | 'under_review' | 'pending_docs' | 'approved' | 'denied' | 'paid'
   ai_triage_result?: Record<string, unknown>
   ai_triage_status?: 'not_started' | 'processing' | 'completed' | 'failed'
+  // New usage-based fields
+  error_started_at?: string
+  error_detected_at?: string
+  actions_during_incident?: number
+  tokens_consumed_during_incident?: number
+  model_at_time_of_incident?: string
+  damage_multiplier?: number
+  coverage_check_result?: Record<string, unknown>
   created_at: string
   updated_at: string
   resolved_at?: string
@@ -134,9 +157,23 @@ export interface StripeEvent {
   processed_at: string
 }
 
+export interface UsageRecord {
+  id: string
+  org_id: string
+  agent_id: string
+  period_start: string
+  period_end: string
+  total_actions: number
+  total_tokens: number
+  total_tool_calls: number
+  model_name?: string
+  estimated_cost_usd?: number
+  created_at: string
+}
+
 export const PLAN_LIMITS = {
-  none: { agents: 0, users: 0, coverage: 0, per_incident: 0, monthly: 0 },
-  starter: { agents: 2, users: 500, coverage: 500000, per_incident: 100000, monthly: 299 },
-  growth: { agents: 5, users: 5000, coverage: 2000000, per_incident: 500000, monthly: 899 },
-  enterprise: { agents: Infinity, users: Infinity, coverage: 5000000, per_incident: 1000000, monthly: 0 },
+  none: { agents: 0, users: 0, coverage: 0, per_incident: 0, monthly: 0, monthly_tokens: 0, monthly_actions: 0, overage_per_1k_tokens: 0 },
+  starter: { agents: 2, users: 500, coverage: 500000, per_incident: 50000, monthly: 299, monthly_tokens: 1_000_000, monthly_actions: 10_000, overage_per_1k_tokens: 0.10 },
+  growth: { agents: 5, users: 5000, coverage: 2_000_000, per_incident: 250_000, monthly: 899, monthly_tokens: 10_000_000, monthly_actions: 100_000, overage_per_1k_tokens: 0.08 },
+  enterprise: { agents: Infinity, users: Infinity, coverage: 5_000_000, per_incident: 1_000_000, monthly: 0, monthly_tokens: Infinity, monthly_actions: Infinity, overage_per_1k_tokens: 0 },
 } as const

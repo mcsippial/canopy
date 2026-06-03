@@ -10,6 +10,17 @@ const CreateAgentSchema = z.object({
   description: z.string().max(2000).optional(),
   actions_description: z.string().max(2000).optional(),
   connected_systems: z.string().max(1000).optional(),
+  // New fields
+  model_name: z.string().max(100).optional(),
+  model_provider: z.enum(['openai', 'anthropic', 'google', 'mistral', 'other']).optional(),
+  avg_tokens_per_action: z.number().int().positive().optional(),
+  pricing_model: z.enum(['per_token', 'per_call', 'per_minute', 'flat_rate', 'unknown']).optional(),
+  max_actions_per_day: z.number().int().positive().optional(),
+  deployment_type: z.enum(['realtime', 'batch', 'scheduled', 'event_driven']).optional(),
+  uses_tool_calls: z.boolean().optional(),
+  max_tool_call_depth: z.number().int().min(0).optional(),
+  human_in_loop: z.boolean().optional(),
+  detection_lag_minutes: z.number().int().min(0).optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -42,7 +53,6 @@ export async function POST(req: NextRequest) {
 
   if (error || !agent) return serverErrorResponse('Failed to create agent')
 
-  // Trigger risk scoring asynchronously (fire and forget in this request, update after)
   const { result: riskResult } = await scoreAgentRisk(parsed.data).catch(() => ({ result: null }))
 
   if (riskResult) {

@@ -13,6 +13,7 @@ import {
   LogOut,
   Shield,
   ChevronRight,
+  Activity,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -20,6 +21,7 @@ import { toast } from 'sonner'
 const navItems = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/agents', label: 'Agents', icon: Bot },
+  { href: '/dashboard/usage', label: 'Usage', icon: Activity },
   { href: '/dashboard/users', label: 'Covered Users', icon: Users },
   { href: '/dashboard/claims', label: 'Claims', icon: FileText },
   { href: '/dashboard/badge', label: 'API & Badge', icon: Code2 },

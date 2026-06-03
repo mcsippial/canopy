@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { Bot, Users, Shield, FileText, TrendingUp } from 'lucide-react'
+import { Bot, Users, Shield, FileText, TrendingUp, Activity } from 'lucide-react'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { PLAN_LIMITS } from '@/types'
+import Link from 'next/link'
 
 function formatCurrency(amount: number) {
   if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`
@@ -12,6 +13,30 @@ function formatCurrency(amount: number) {
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function formatNumber(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
+  return n.toString()
+}
+
+function UsageBar({ used, limit, label, unit }: { used: number; limit: number; label: string; unit: string }) {
+  const pct = limit === 0 || !isFinite(limit) ? 0 : Math.min(100, (used / limit) * 100)
+  const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-[#5DCAA5]'
+  return (
+    <div>
+      <div className="flex justify-between text-sm mb-1">
+        <span className="font-medium text-gray-700">{label}</span>
+        <span className="text-gray-500">
+          {formatNumber(used)} / {isFinite(limit) ? formatNumber(limit) : '∞'} {unit}
+        </span>
+      </div>
+      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
 }
 
 export default async function DashboardPage() {
@@ -52,6 +77,19 @@ export default async function DashboardPage() {
   const planLimits = PLAN_LIMITS[planKey]
 
   const coverageLimit = activePolicy?.coverage_limit || planLimits.coverage || 0
+
+  // Usage stats
+  const tokensUsed = Number(org?.tokens_used_this_period ?? 0)
+  const actionsUsed = Number(org?.actions_used_this_period ?? 0)
+  const tokenLimit = org?.monthly_token_limit ? Number(org.monthly_token_limit) : planLimits.monthly_tokens
+  const actionLimit = org?.monthly_action_limit ? Number(org.monthly_action_limit) : planLimits.monthly_actions
+
+  // Overage calculation
+  let overageCost = 0
+  if (isFinite(tokenLimit) && tokensUsed > tokenLimit) {
+    const overTokens = tokensUsed - tokenLimit
+    overageCost = (overTokens / 1000) * planLimits.overage_per_1k_tokens
+  }
 
   return (
     <div className="p-8">
@@ -95,6 +133,33 @@ export default async function DashboardPage() {
           <a href="/dashboard/billing" className="ml-auto bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors whitespace-nowrap">
             View plans
           </a>
+        </div>
+      )}
+
+      {/* Usage section */}
+      {org?.plan !== 'none' && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Activity size={18} className="text-[#5DCAA5]" />
+              <h2 className="font-semibold text-[#1a1a2e]">Usage this period</h2>
+            </div>
+            <Link href="/dashboard/usage" className="text-sm text-[#5DCAA5] hover:underline">
+              View details
+            </Link>
+          </div>
+          <div className="space-y-4">
+            <UsageBar used={tokensUsed} limit={tokenLimit} label="Tokens" unit="tokens" />
+            <UsageBar used={actionsUsed} limit={actionLimit} label="Actions" unit="actions" />
+          </div>
+          {overageCost > 0 && (
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between">
+              <div className="text-sm text-amber-800">
+                <span className="font-semibold">Estimated overage:</span> ${overageCost.toFixed(2)} this period
+              </div>
+              <Link href="/dashboard/usage" className="text-xs text-amber-700 underline">Details</Link>
+            </div>
+          )}
         </div>
       )}
 

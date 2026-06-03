@@ -148,18 +148,28 @@ export default function HomePage() {
       <section id="pricing" className="py-24 px-4 bg-gray-50">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-[#1a1a2e] mb-4">Simple, transparent pricing</h2>
-            <p className="text-xl text-gray-600">No hidden fees. Coverage that scales with your deployment.</p>
+            <h2 className="text-4xl font-bold text-[#1a1a2e] mb-4">Usage-based coverage pricing</h2>
+            <p className="text-xl text-gray-600">Your premium scales with your deployment. Pay for what you use.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {/* Starter */}
             <div className="bg-white rounded-2xl p-8 border border-gray-200">
               <div className="mb-6">
                 <h3 className="text-xl font-bold text-[#1a1a2e] mb-1">Starter</h3>
-                <div className="text-4xl font-bold text-[#1a1a2e]">$299<span className="text-lg font-normal text-gray-500">/mo</span></div>
+                <div className="text-4xl font-bold text-[#1a1a2e]">$299<span className="text-lg font-normal text-gray-500">/mo base</span></div>
+                <p className="text-sm text-gray-500 mt-2">+ $0.10 per 1K tokens over limit</p>
               </div>
               <ul className="space-y-3 mb-8">
-                {['2 AI agents', '$500K coverage limit', '500 covered users', 'Trust badge embed', 'Claims dashboard', 'Email support'].map((f) => (
+                {[
+                  'Up to 2 AI agents',
+                  '1M tokens/mo included',
+                  '10,000 actions/mo included',
+                  '$500K aggregate coverage',
+                  '$50K per incident limit',
+                  'Trust badge embed',
+                  'Claims dashboard',
+                  'Email support',
+                ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-gray-600 text-sm">
                     <CheckCircle size={16} className="text-[#5DCAA5] flex-shrink-0" />
                     {f}
@@ -181,10 +191,21 @@ export default function HomePage() {
               </div>
               <div className="mb-6">
                 <h3 className="text-xl font-bold text-white mb-1">Growth</h3>
-                <div className="text-4xl font-bold text-white">$899<span className="text-lg font-normal text-white/60">/mo</span></div>
+                <div className="text-4xl font-bold text-white">$899<span className="text-lg font-normal text-white/60">/mo base</span></div>
+                <p className="text-sm text-white/50 mt-2">+ $0.08 per 1K tokens over limit</p>
               </div>
               <ul className="space-y-3 mb-8">
-                {['5 AI agents', '$2M coverage limit', '5,000 covered users', 'Trust badge embed', 'Claims dashboard', 'AI triage', 'Priority support'].map((f) => (
+                {[
+                  'Up to 5 AI agents',
+                  '10M tokens/mo included',
+                  '100,000 actions/mo included',
+                  '$2M aggregate coverage',
+                  '$250K per incident limit',
+                  'Trust badge embed',
+                  'Claims dashboard + AI triage',
+                  'Usage analytics',
+                  'Priority support',
+                ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-white/80 text-sm">
                     <CheckCircle size={16} className="text-[#5DCAA5] flex-shrink-0" />
                     {f}
@@ -204,9 +225,19 @@ export default function HomePage() {
               <div className="mb-6">
                 <h3 className="text-xl font-bold text-[#1a1a2e] mb-1">Enterprise</h3>
                 <div className="text-4xl font-bold text-[#1a1a2e]">Custom</div>
+                <p className="text-sm text-gray-500 mt-2">Negotiated based on usage profile</p>
               </div>
               <ul className="space-y-3 mb-8">
-                {['Unlimited AI agents', '$5M+ coverage limit', 'Unlimited users', 'Custom policy terms', 'Dedicated claims team', 'SLA guarantee', '24/7 support'].map((f) => (
+                {[
+                  'Unlimited AI agents',
+                  'Custom token/action limits',
+                  '$5M+ aggregate coverage',
+                  'Custom per-incident limits',
+                  'Dedicated underwriter',
+                  'Custom policy terms',
+                  'SLA guarantee',
+                  '24/7 support',
+                ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-gray-600 text-sm">
                     <CheckCircle size={16} className="text-[#5DCAA5] flex-shrink-0" />
                     {f}
@@ -220,6 +251,15 @@ export default function HomePage() {
                 Contact us
               </a>
             </div>
+          </div>
+
+          {/* Usage-based note */}
+          <div className="mt-12 bg-white rounded-2xl border border-gray-200 p-8 text-center">
+            <h3 className="text-lg font-bold text-[#1a1a2e] mb-2">Why usage-based pricing?</h3>
+            <p className="text-gray-600 max-w-2xl mx-auto text-sm leading-relaxed">
+              AI agent liability scales with usage. A single bad decision looping for 6 hours is categorically different from a single bad response.
+              Our pricing model reflects this reality — your coverage premium accounts for token consumption, action frequency, and deployment patterns.
+            </p>
           </div>
         </div>
       </section>

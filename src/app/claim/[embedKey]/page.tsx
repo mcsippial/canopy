@@ -25,8 +25,15 @@ export default function ClaimPage({ params }: { params: { embedKey: string } }) 
     claimant_email: '',
     incident_date: '',
     description: '',
+    // Step 2 new fields
+    error_started_at: '',
+    error_detected_at: '',
+    actions_during_incident: '',
+    // Step 3 fields
     financial_impact_description: '',
     amount_claimed: '',
+    error_repeated: false,
+    model_at_time_of_incident: '',
   })
 
   useEffect(() => {
@@ -42,18 +49,27 @@ export default function ClaimPage({ params }: { params: { embedKey: string } }) 
   async function handleSubmit() {
     setSubmitting(true)
     try {
+      const payload: Record<string, unknown> = {
+        embed_key: params.embedKey,
+        claimant_name: form.claimant_name,
+        claimant_email: form.claimant_email,
+        incident_date: form.incident_date || undefined,
+        description: form.description,
+        financial_impact_description: form.financial_impact_description || undefined,
+        amount_claimed: parseFloat(form.amount_claimed),
+        error_started_at: form.error_started_at || undefined,
+        error_detected_at: form.error_detected_at || undefined,
+        error_repeated: form.error_repeated,
+        model_at_time_of_incident: form.model_at_time_of_incident || undefined,
+      }
+      if (form.actions_during_incident) {
+        payload.actions_during_incident = parseInt(form.actions_during_incident)
+      }
+
       const res = await fetch('/api/claims', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          embed_key: params.embedKey,
-          claimant_name: form.claimant_name,
-          claimant_email: form.claimant_email,
-          incident_date: form.incident_date || undefined,
-          description: form.description,
-          financial_impact_description: form.financial_impact_description || undefined,
-          amount_claimed: parseFloat(form.amount_claimed),
-        }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -157,6 +173,37 @@ export default function ClaimPage({ params }: { params: { embedKey: string } }) 
                 placeholder="Please describe the incident in as much detail as possible, including what the AI agent did or failed to do..."
                 hint="Be as specific as possible. Include dates, actions taken, and any other relevant details."
               />
+
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-sm font-medium text-gray-700 mb-3">Error timeline (optional but helps us assess your claim faster)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="When did the error start?"
+                    type="datetime-local"
+                    value={form.error_started_at}
+                    onChange={(e) => setForm({ ...form, error_started_at: e.target.value })}
+                  />
+                  <Input
+                    label="When was it detected?"
+                    type="datetime-local"
+                    value={form.error_detected_at}
+                    onChange={(e) => setForm({ ...form, error_detected_at: e.target.value })}
+                    hint="Defaults to incident date if not provided"
+                  />
+                </div>
+                <div className="mt-3">
+                  <Input
+                    label="Approx. agent actions during this period"
+                    type="number"
+                    min="0"
+                    placeholder="e.g., 50"
+                    value={form.actions_during_incident}
+                    onChange={(e) => setForm({ ...form, actions_during_incident: e.target.value })}
+                    hint="How many times did the agent act during the error window? (optional)"
+                  />
+                </div>
+              </div>
+
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setStep(1)}>
                   <ChevronLeft size={16} /> Back
@@ -198,6 +245,43 @@ export default function ClaimPage({ params }: { params: { embedKey: string } }) 
                 onChange={(e) => setForm({ ...form, financial_impact_description: e.target.value })}
                 placeholder="How did this incident affect you financially? Include any costs, losses, or damages..."
               />
+
+              <div className="border-t border-gray-100 pt-4 space-y-3">
+                <p className="text-sm font-medium text-gray-700">Additional details</p>
+
+                {/* Was this error repeated? */}
+                <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <div className="text-sm font-medium text-gray-700">Was this error repeated or looped?</div>
+                    <div className="text-xs text-gray-500">Did the agent repeat the same mistake multiple times?</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, error_repeated: true })}
+                      className={`px-3 py-1 text-sm rounded-lg border font-medium transition-colors ${form.error_repeated ? 'bg-[#5DCAA5] text-white border-[#5DCAA5]' : 'text-gray-600 border-gray-300 hover:bg-gray-100'}`}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, error_repeated: false })}
+                      className={`px-3 py-1 text-sm rounded-lg border font-medium transition-colors ${!form.error_repeated ? 'bg-gray-800 text-white border-gray-800' : 'text-gray-600 border-gray-300 hover:bg-gray-100'}`}
+                    >
+                      No
+                    </button>
+                  </div>
+                </div>
+
+                <Input
+                  label="AI model version at time of incident"
+                  placeholder="e.g., gpt-4o, claude-sonnet-4-20250514"
+                  value={form.model_at_time_of_incident}
+                  onChange={(e) => setForm({ ...form, model_at_time_of_incident: e.target.value })}
+                  hint="Which AI model was the agent using when the error occurred? (optional)"
+                />
+              </div>
+
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                 <p className="text-xs text-amber-800">
                   By submitting, you confirm that the information provided is accurate and complete to the best of your knowledge.
