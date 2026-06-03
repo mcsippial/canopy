@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Code2, Copy, RefreshCw, Shield, CheckCircle } from 'lucide-react'
+import { Code2, Copy, RefreshCw, Shield, CheckCircle, AlertTriangle, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
+
+const APP_URL = 'https://canopy-lyart.vercel.app'
 
 interface BadgeData {
   id: string
@@ -14,22 +16,37 @@ interface BadgeData {
   rotated_at?: string
 }
 
+interface PolicyData {
+  id: string
+  policy_number: string
+  status: string
+  per_incident_limit: number
+  aggregate_limit: number
+  expires_at?: string
+}
+
 export default function BadgePage() {
   const [badge, setBadge] = useState<BadgeData | null>(null)
+  const [policy, setPolicy] = useState<PolicyData | null>(null)
   const [loading, setLoading] = useState(true)
   const [rotating, setRotating] = useState(false)
   const [activating, setActivating] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://yourapp.com'
-
-  async function fetchBadge() {
-    const res = await fetch('/api/badge-config')
-    if (res.ok) setBadge(await res.json())
+  async function fetchData() {
+    const [badgeRes, policyRes] = await Promise.all([
+      fetch('/api/badge-config'),
+      fetch('/api/policy'),
+    ])
+    if (badgeRes.ok) setBadge(await badgeRes.json())
+    if (policyRes.ok) {
+      const policyData = await policyRes.json()
+      setPolicy(policyData.policy ?? null)
+    }
     setLoading(false)
   }
 
-  useEffect(() => { fetchBadge() }, [])
+  useEffect(() => { fetchData() }, [])
 
   async function handleRotate() {
     if (!confirm('Rotating the embed key will invalidate your current badge. All existing embeds will stop working. Continue?')) return
@@ -68,7 +85,7 @@ export default function BadgePage() {
 
   function copyCode() {
     if (!badge) return
-    const code = `<script src="${appUrl}/badge.js" data-key="${badge.embed_key}"></script>`
+    const code = `<script src="${APP_URL}/badge.js" data-key="${badge.embed_key}"></script>`
     navigator.clipboard.writeText(code)
     setCopied(true)
     toast.success('Embed code copied!')
@@ -77,7 +94,10 @@ export default function BadgePage() {
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
 
-  const embedCode = badge ? `<script src="${appUrl}/badge.js" data-key="${badge.embed_key}"></script>` : ''
+  const embedCode = badge ? `<script src="${APP_URL}/badge.js" data-key="${badge.embed_key}"></script>` : ''
+
+  const hasActivePolicy = !!policy
+  const badgeIsActive = badge?.active
 
   return (
     <div className="p-8">
@@ -85,6 +105,49 @@ export default function BadgePage() {
         <h1 className="text-2xl font-bold text-[#1a1a2e]">API &amp; Badge</h1>
         <p className="text-gray-600 mt-1">Configure your trust badge and embed it in your product.</p>
       </div>
+
+      {/* Coverage status indicator */}
+      {badge && (
+        <div className={`rounded-xl border p-4 mb-6 flex items-start gap-3 ${
+          hasActivePolicy && badgeIsActive
+            ? 'bg-green-50 border-green-200'
+            : !hasActivePolicy
+            ? 'bg-amber-50 border-amber-200'
+            : 'bg-gray-100 border-gray-200'
+        }`}>
+          {hasActivePolicy && badgeIsActive ? (
+            <>
+              <CheckCircle size={20} className="text-green-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="text-sm font-semibold text-green-800">Coverage Active</div>
+                <div className="text-sm text-green-700">
+                  Policy {policy.policy_number} — your badge reflects live coverage
+                </div>
+              </div>
+            </>
+          ) : !hasActivePolicy ? (
+            <>
+              <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="text-sm font-semibold text-amber-800">No active policy</div>
+                <div className="text-sm text-amber-700">
+                  Generate a policy to activate your badge and display real coverage to users.
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <XCircle size={20} className="text-gray-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="text-sm font-semibold text-gray-700">Badge inactive</div>
+                <div className="text-sm text-gray-600">
+                  Activate your badge below to display coverage to users.
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {badge ? (
         <div className="space-y-6">
@@ -138,19 +201,40 @@ export default function BadgePage() {
           {/* Badge preview */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h2 className="font-semibold text-[#1a1a2e] mb-4">Badge preview</h2>
-            <div className="bg-gray-50 rounded-xl p-8 flex items-center justify-center">
-              <div className="inline-flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-5 py-3 shadow-md cursor-pointer hover:shadow-lg transition-shadow">
-                <div className="bg-[#5DCAA5]/20 p-1.5 rounded-lg">
-                  <Shield size={20} className="text-[#5DCAA5]" />
+            <div className="space-y-4">
+              {/* Active state */}
+              <div>
+                <p className="text-xs text-gray-500 mb-2 font-medium">Active coverage</p>
+                <div className="bg-gray-50 rounded-xl p-6 flex items-center justify-center">
+                  <div className="inline-flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-md cursor-pointer hover:shadow-lg transition-shadow">
+                    <div className="bg-[#5DCAA5]/20 p-1.5 rounded-lg">
+                      <Shield size={18} className="text-[#5DCAA5]" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-[#1a1a2e]">Protected by Canopy</div>
+                      <div className="text-[10px] text-gray-500">
+                        Up to {hasActivePolicy ? `$${(policy.per_incident_limit / 1000).toFixed(0)}K` : '$50K'} per incident
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm font-semibold text-[#1a1a2e]">Protected by Canopy</div>
-                  <div className="text-xs text-gray-500">Up to $100,000 per incident</div>
+              </div>
+
+              {/* Pending state */}
+              <div>
+                <p className="text-xs text-gray-500 mb-2 font-medium">Pending coverage (shown when no active policy)</p>
+                <div className="bg-gray-50 rounded-xl p-6 flex items-center justify-center">
+                  <div className="inline-flex items-center gap-2.5 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm cursor-pointer opacity-75">
+                    <div className="bg-gray-100 p-1.5 rounded-lg">
+                      <Shield size={16} className="text-gray-400" />
+                    </div>
+                    <div className="text-xs font-semibold text-gray-500">Coverage Pending</div>
+                  </div>
                 </div>
               </div>
             </div>
             <p className="text-xs text-gray-500 mt-3 text-center">
-              When clicked, users can view coverage details and submit claims.
+              When active, users can click to view coverage details and submit claims.
             </p>
           </div>
 
