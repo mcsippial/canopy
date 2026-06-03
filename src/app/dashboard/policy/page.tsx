@@ -27,20 +27,36 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
+function SectionDivider() {
+  return <hr className="border-t border-gray-200 my-8" />
+}
+
+function SectionHeading({ number, title }: { number: string; title: string }) {
+  return (
+    <h2 className="text-base font-bold text-[#1a1a2e] uppercase tracking-wide mb-4">
+      {number}. {title}
+    </h2>
+  )
+}
+
 function PolicyView({ policy }: { policy: PolicyRecord }) {
   const doc = policy.document
   return (
-    <div className="bg-white rounded-xl border border-gray-200 print:border-0 print:shadow-none">
-      {/* Header */}
+    <div className="bg-white rounded-xl border border-gray-200 print:border-0 print:shadow-none print:rounded-none">
+      {/* Document Header */}
       <div className="p-8 border-b border-gray-200 print:pb-6">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-[#5DCAA5]/10 p-3 rounded-xl">
+            <div className="bg-[#5DCAA5]/10 p-3 rounded-xl print:hidden">
               <Shield size={28} className="text-[#5DCAA5]" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-[#1a1a2e]">AI Agent Liability Policy</h1>
-              <p className="text-gray-500 mt-0.5">Canopy Insurance — {doc.coverage_territory}</p>
+              <p className="text-xs text-gray-500 uppercase tracking-widest mb-0.5">AI Agent Liability Policy</p>
+              <h1 className="text-2xl font-bold text-[#1a1a2e]">Canopy Coverage Services, Inc.</h1>
+              <p className="text-gray-500 text-sm mt-0.5">
+                Specialty AI Liability Program<br />
+                <span className="text-xs">Administered on behalf of admitted carriers. Coverage subject to carrier approval and state availability.</span>
+              </p>
             </div>
           </div>
           <div className="text-right">
@@ -53,48 +69,167 @@ function PolicyView({ policy }: { policy: PolicyRecord }) {
             </span>
           </div>
         </div>
-
-        <div className="grid grid-cols-3 gap-6 mt-6 pt-6 border-t border-gray-100">
-          <div>
-            <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Insured Organization</div>
-            <div className="font-semibold text-[#1a1a2e]">{doc.insured_organization.name}</div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Effective Date</div>
-            <div className="font-semibold text-[#1a1a2e]">{formatDate(doc.effective_at)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Expiration Date</div>
-            <div className="font-semibold text-[#1a1a2e]">{formatDate(doc.expires_at)}</div>
-          </div>
-        </div>
       </div>
 
-      <div className="p-8 space-y-8">
-        {/* Coverage Summary */}
+      <div className="p-8 space-y-0">
+
+        {/* DECLARATIONS PAGE */}
         <section>
-          <h2 className="text-lg font-semibold text-[#1a1a2e] mb-4">Coverage Summary</h2>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Aggregate Limit</div>
-              <div className="text-xl font-bold text-[#1a1a2e]">{formatCurrency(doc.aggregate_limit)}</div>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Per Incident Limit</div>
-              <div className="text-xl font-bold text-[#1a1a2e]">{formatCurrency(doc.per_incident_limit)}</div>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Monthly Premium</div>
-              <div className="text-xl font-bold text-[#1a1a2e]">
-                {doc.premium_monthly === 0 ? 'Custom' : formatCurrency(doc.premium_monthly)}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-2">
+            <h2 className="text-sm font-bold text-[#1a1a2e] uppercase tracking-widest mb-5 text-center">Declarations Page</h2>
+            <div className="grid grid-cols-2 gap-x-12 gap-y-4 text-sm">
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">Named Insured</div>
+                <div className="font-semibold text-[#1a1a2e]">{doc.insured_organization.name}</div>
               </div>
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">Policy Number</div>
+                <div className="font-mono font-semibold text-[#1a1a2e]">{doc.policy_number}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">Policy Period</div>
+                <div className="font-semibold text-[#1a1a2e]">{formatDate(doc.effective_at)} to {formatDate(doc.expires_at)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">Coverage Territory</div>
+                <div className="font-semibold text-[#1a1a2e]">{doc.coverage_territory}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">Aggregate Limit</div>
+                <div className="text-xl font-bold text-[#1a1a2e]">{formatCurrency(doc.aggregate_limit)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">Per Incident Limit</div>
+                <div className="text-xl font-bold text-[#1a1a2e]">{formatCurrency(doc.per_incident_limit)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">Monthly Premium</div>
+                <div className="text-xl font-bold text-[#1a1a2e]">
+                  {doc.premium_monthly === 0 ? 'Custom — see endorsement' : formatCurrency(doc.premium_monthly)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">Endorsements</div>
+                <div className="font-semibold text-[#1a1a2e]">Schedule of Covered Agents</div>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+              <span className="font-medium">Date of Issue:</span> {formatDate(doc.issued_at)}
+              &nbsp;&nbsp;|&nbsp;&nbsp;
+              <span className="font-medium">Issuer:</span> Canopy Coverage Services, Inc.
+              &nbsp;&nbsp;|&nbsp;&nbsp;
+              <span className="font-medium">Insured ID:</span> {doc.insured_organization.id}
             </div>
           </div>
         </section>
 
-        {/* Covered Agents */}
+        <SectionDivider />
+
+        {/* I. INSURING AGREEMENT */}
         <section>
-          <h2 className="text-lg font-semibold text-[#1a1a2e] mb-4">Covered Agents</h2>
+          <SectionHeading number="I" title="Insuring Agreement" />
+          <p className="text-sm text-gray-700 leading-relaxed">
+            In consideration of the premium paid and subject to the terms, conditions, exclusions, and limitations of this policy,
+            Canopy Coverage Services, Inc. (&ldquo;Canopy&rdquo;) agrees to indemnify the Named Insured against covered losses arising from
+            the operation of AI agents individually listed and approved under the Schedule of Covered Agents (Endorsement A),
+            occurring during the Policy Period and within the Coverage Territory, up to the applicable limits of liability set
+            forth in the Declarations Page. This policy constitutes a contract of indemnity only. Canopy&apos;s obligation to pay
+            under this policy arises solely upon the Insured sustaining or becoming legally obligated to pay a covered loss as
+            defined herein.
+          </p>
+        </section>
+
+        <SectionDivider />
+
+        {/* II. COVERED EVENTS */}
+        <section>
+          <SectionHeading number="II" title="Covered Events" />
+          <p className="text-xs text-gray-500 mb-4 italic">
+            Subject to the terms, conditions, exclusions, and limits of this policy, the following losses are covered:
+          </p>
+          <ul className="space-y-3">
+            {doc.covered_events.map((event, i) => (
+              <li key={i} className="flex items-start gap-2.5">
+                <CheckCircle size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
+                <span className="text-sm text-gray-700 leading-relaxed">{event}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <SectionDivider />
+
+        {/* III. EXCLUSIONS */}
+        <section>
+          <SectionHeading number="III" title="Exclusions" />
+          <p className="text-xs text-gray-500 mb-4 italic">
+            This policy does not apply to, and Canopy shall have no obligation to pay for, any loss, damage, cost, or expense
+            arising directly or indirectly out of, or in any way involving:
+          </p>
+          <ul className="space-y-3">
+            {doc.exclusions.map((ex, i) => (
+              <li key={i} className="flex items-start gap-2.5">
+                <AlertCircle size={16} className="text-red-400 mt-0.5 flex-shrink-0" />
+                <span className="text-sm text-gray-700 leading-relaxed">{ex}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <SectionDivider />
+
+        {/* IV. CONDITIONS */}
+        <section>
+          <SectionHeading number="IV" title="Conditions" />
+          <ol className="space-y-4">
+            {doc.conditions.map((c, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <span className="text-xs font-bold text-gray-400 mt-0.5 w-5 flex-shrink-0">{i + 1}.</span>
+                <span className="text-sm text-gray-700 leading-relaxed">{c}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <SectionDivider />
+
+        {/* V. CLAIMS PROCEDURE */}
+        <section>
+          <SectionHeading number="V" title="Claims Procedure" />
+          <ol className="space-y-4">
+            {doc.claims_process.map((step, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#5DCAA5]/10 text-[#5DCAA5] text-xs font-bold flex items-center justify-center">
+                  {i + 1}
+                </span>
+                <span className="text-sm text-gray-700 leading-relaxed mt-0.5">{step}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <SectionDivider />
+
+        {/* VI. GENERAL PROVISIONS */}
+        <section>
+          <SectionHeading number="VI" title="General Provisions" />
+          <p className="text-sm text-gray-700 leading-relaxed">
+            <span className="font-semibold">Governing Law.</span> {doc.governing_law}
+          </p>
+        </section>
+
+        <SectionDivider />
+
+        {/* ENDORSEMENT A — SCHEDULE OF COVERED AGENTS */}
+        <section>
+          <div className="mb-4">
+            <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-0.5">Endorsement A</p>
+            <h2 className="text-base font-bold text-[#1a1a2e] uppercase tracking-wide">Schedule of Covered Agents</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Coverage under this policy applies only to agents individually identified below. Any AI agent not listed in this
+              schedule is not a covered agent and is expressly excluded from coverage.
+            </p>
+          </div>
           <div className="overflow-hidden rounded-lg border border-gray-200">
             <table className="w-full text-sm">
               <thead>
@@ -135,65 +270,16 @@ function PolicyView({ policy }: { policy: PolicyRecord }) {
           </div>
         </section>
 
-        {/* Covered Events */}
-        <section>
-          <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3">Covered Events</h2>
-          <ul className="space-y-2">
-            {doc.covered_events.map((event, i) => (
-              <li key={i} className="flex items-start gap-2.5">
-                <CheckCircle size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
-                <span className="text-sm text-gray-700">{event}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {/* Exclusions */}
-        <section>
-          <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3">Exclusions</h2>
-          <ul className="space-y-2">
-            {doc.exclusions.map((ex, i) => (
-              <li key={i} className="flex items-start gap-2.5">
-                <AlertCircle size={16} className="text-red-400 mt-0.5 flex-shrink-0" />
-                <span className="text-sm text-gray-700">{ex}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {/* Conditions */}
-        <section>
-          <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3">Policy Conditions</h2>
-          <ol className="space-y-2">
-            {doc.conditions.map((c, i) => (
-              <li key={i} className="flex items-start gap-2.5">
-                <span className="text-xs font-bold text-gray-400 mt-0.5 w-5 flex-shrink-0">{i + 1}.</span>
-                <span className="text-sm text-gray-700">{c}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {/* Claims Process */}
-        <section>
-          <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3">Claims Process</h2>
-          <ol className="space-y-2">
-            {doc.claims_process.map((step, i) => (
-              <li key={i} className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#5DCAA5]/10 text-[#5DCAA5] text-xs font-bold flex items-center justify-center">
-                  {i + 1}
-                </span>
-                <span className="text-sm text-gray-700 mt-0.5">{step}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
+        <SectionDivider />
 
         {/* Footer */}
-        <div className="pt-6 border-t border-gray-200 text-xs text-gray-400 space-y-1">
-          <p>Governing Law: {doc.governing_law}</p>
-          <p>Issued: {formatDate(doc.issued_at)}</p>
-          <p>This policy document is generated by Canopy and is subject to the full terms and conditions of your coverage agreement.</p>
+        <div className="text-xs text-gray-400 space-y-2 pt-2">
+          <p className="font-medium text-gray-600 text-sm">
+            This document constitutes the entire agreement between the parties with respect to the subject matter hereof.
+            No modification of this policy shall be valid unless made in writing and signed by an authorized representative
+            of Canopy Coverage Services, Inc.
+          </p>
+          <p>Issued: {formatDate(doc.issued_at)} &nbsp;|&nbsp; Policy Number: {doc.policy_number}</p>
         </div>
       </div>
     </div>
@@ -248,54 +334,68 @@ export default function PolicyPage() {
     }
   }
 
+  const policyNumber = policy?.document?.policy_number
+  const pageTitle = policyNumber ? `Policy ${policyNumber} | Canopy` : 'Policy | Canopy'
+
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-[#1a1a2e]">Policy</h1>
-          <p className="text-gray-600 mt-1">Your AI agent liability coverage document.</p>
+    <>
+      <title>{pageTitle}</title>
+      <div className="p-8 print:p-0">
+        <div className="flex items-center justify-between mb-8 print:hidden">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1a1a2e]">Policy</h1>
+            <p className="text-gray-600 mt-1">Your AI agent liability coverage document.</p>
+          </div>
+          <div className="flex gap-3">
+            {policy && (
+              <>
+                <Button variant="outline" onClick={() => window.print()}>
+                  <Download size={16} /> Download PDF
+                </Button>
+                <Button variant="outline" onClick={fetchPolicy}>
+                  <RefreshCw size={16} />
+                </Button>
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex gap-3 print:hidden">
-          {policy && (
-            <>
-              <Button variant="outline" onClick={() => window.print()}>
-                <Download size={16} /> Download PDF
-              </Button>
-              <Button variant="outline" onClick={fetchPolicy}>
-                <RefreshCw size={16} />
-              </Button>
-            </>
-          )}
-        </div>
+
+        {loading ? (
+          <div className="text-center py-20 text-gray-400">Loading...</div>
+        ) : error ? (
+          <div className="bg-white rounded-xl border border-red-200 p-8 text-center">
+            <AlertCircle size={40} className="text-red-400 mx-auto mb-3" />
+            <p className="text-red-600 font-medium">{error}</p>
+            {error.includes('approved') && (
+              <p className="text-gray-500 text-sm mt-2">
+                Go to <a href="/dashboard/agents" className="text-[#5DCAA5] underline">Agents</a> to underwrite and approve agents first.
+              </p>
+            )}
+          </div>
+        ) : !policy ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-16 text-center">
+            <FileText size={48} className="text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-700 mb-2">No active policy</h3>
+            <p className="text-gray-500 mb-6 max-w-md mx-auto">
+              You need at least one underwritten and approved agent before a policy can be issued.
+              Once you have approved agents, generate your policy here.
+            </p>
+            <Button onClick={handleGenerate} loading={generating}>
+              Generate Policy
+            </Button>
+          </div>
+        ) : (
+          <PolicyView policy={policy} />
+        )}
       </div>
 
-      {loading ? (
-        <div className="text-center py-20 text-gray-400">Loading...</div>
-      ) : error ? (
-        <div className="bg-white rounded-xl border border-red-200 p-8 text-center">
-          <AlertCircle size={40} className="text-red-400 mx-auto mb-3" />
-          <p className="text-red-600 font-medium">{error}</p>
-          {error.includes('approved') && (
-            <p className="text-gray-500 text-sm mt-2">
-              Go to <a href="/dashboard/agents" className="text-[#5DCAA5] underline">Agents</a> to underwrite and approve agents first.
-            </p>
-          )}
-        </div>
-      ) : !policy ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-16 text-center">
-          <FileText size={48} className="text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">No active policy</h3>
-          <p className="text-gray-500 mb-6 max-w-md mx-auto">
-            You need at least one underwritten and approved agent before a policy can be issued.
-            Once you have approved agents, generate your policy here.
-          </p>
-          <Button onClick={handleGenerate} loading={generating}>
-            Generate Policy
-          </Button>
-        </div>
-      ) : (
-        <PolicyView policy={policy} />
-      )}
-    </div>
+      <style>{`
+        @media print {
+          [data-sidebar], nav, aside, header, .print\\:hidden { display: none !important; }
+          body { background: white; }
+          @page { margin: 1.5cm 2cm; }
+        }
+      `}</style>
+    </>
   )
 }

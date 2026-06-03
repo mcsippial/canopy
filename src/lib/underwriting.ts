@@ -36,11 +36,15 @@ type AgentInput = {
 }
 
 const STANDARD_EXCLUSIONS = [
-  'Intentional or fraudulent acts by the insured organization',
-  'Losses caused by failure to maintain the agent within its registered operational parameters',
-  'Losses occurring prior to policy effective date',
-  'Losses caused by actions of agents not registered under this policy',
-  'Consequential or punitive damages beyond direct financial loss',
+  'Any loss arising from intentional, willful, fraudulent, dishonest, or criminal acts or omissions by the Insured, its officers, directors, employees, or agents acting with actual knowledge',
+  "Any loss resulting from the Insured's failure to operate the registered AI agent within its documented and registered operational parameters, including but not limited to exceeding registered action limits, token limits, or tool call depths",
+  'Any loss, claim, or liability arising from events occurring prior to the Policy Effective Date or after the Policy Expiration Date',
+  'Any loss caused by or attributable to AI agents not individually listed and approved under the Covered Agents schedule of this policy at the time of the incident',
+  'Consequential, indirect, special, exemplary, or punitive damages of any nature, including but not limited to lost profits, lost revenue, or business interruption losses not directly caused by a covered incident',
+  "Any loss arising from the Insured's use of AI models, providers, or operational configurations not disclosed to and approved by Canopy at the time of policy issuance",
+  'Bodily injury, property damage, or personal and advertising injury of any kind',
+  'Any loss arising from a system outage, API unavailability, or service degradation of a third-party AI model provider',
+  'War, terrorism, cyberwar, nation-state attack, or infrastructure-level failure affecting AI service providers',
 ]
 
 export function runUnderwriting(agent: AgentInput): UnderwritingDecision {
@@ -71,13 +75,13 @@ export function runUnderwriting(agent: AgentInput): UnderwritingDecision {
   // Build exclusions
   const exclusions = [...STANDARD_EXCLUSIONS]
   if (!humanInLoop) {
-    exclusions.push('Losses from extended autonomous operation without human review exceeding 48 hours')
+    exclusions.push('Any loss arising from autonomous agent operation exceeding forty-eight (48) consecutive hours without documented human review or intervention, where the Insured has not established and maintained an automated monitoring system with alerting capability')
   }
   if (deploymentType === 'batch') {
-    exclusions.push('Losses from batch jobs initiated without pre-execution validation')
+    exclusions.push('Any loss arising from batch processing jobs initiated without pre-execution parameter validation, output sampling, or human sign-off where the estimated output volume exceeds 10,000 records or $10,000 in estimated financial exposure')
   }
   if (usesToolCalls) {
-    exclusions.push(`Losses from tool call chains exceeding the registered maximum depth of ${maxToolCallDepth}`)
+    exclusions.push(`Any loss arising from tool call execution chains exceeding the registered maximum depth of ${maxToolCallDepth}, or from tool calls to external systems not listed in the agent's registered connected systems at time of policy issuance`)
   }
 
   // Automatic declines

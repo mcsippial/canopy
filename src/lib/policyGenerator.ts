@@ -32,28 +32,30 @@ export type PolicyDocument = {
 }
 
 const STANDARD_COVERED_EVENTS = [
-  'Direct financial losses to end users caused by AI agent errors or hallucinations',
-  'Losses from unintended agent actions within registered operational parameters',
-  'Losses from unauthorized data access caused by agent malfunction',
-  'Costs of reasonable remediation efforts following a covered incident',
-  'Legal defense costs for covered third-party claims (up to 10% of per-incident limit)',
+  'Direct pecuniary loss sustained by a covered end user directly resulting from an erroneous output, hallucination, or material omission produced by a registered AI agent acting within its authorized operational scope',
+  'Financial loss arising from an unintended autonomous action taken by a registered AI agent that falls outside its configured behavioral parameters, provided such action was not the result of operator misconfiguration',
+  'Reasonable and necessary costs incurred by the insured organization to investigate, remediate, and notify affected end users following a covered AI agent incident, up to 15% of the applicable per-incident limit',
+  'Third-party claims expenses, including reasonable legal defense costs, arising from a covered incident, subject to a sublimit of 10% of the applicable per-incident limit',
+  'Loss of covered end-user funds directly attributable to unauthorized data exfiltration or unauthorized financial transaction initiated by a registered AI agent due to a security malfunction',
 ]
 
 const STANDARD_CONDITIONS = [
-  'The insured must notify Canopy within 72 hours of discovering a potential covered incident',
-  'The insured must maintain agent operation logs for a minimum of 90 days',
-  'Coverage is contingent on agents operating within their registered parameters',
-  'The insured must cooperate fully with claims investigation',
-  'Policy is subject to annual renewal and re-underwriting',
+  'The Insured shall provide written notice to Canopy of any occurrence that may give rise to a claim hereunder within seventy-two (72) hours of first discovery. Notice shall be provided through the Canopy claims portal at canopy.insure and shall include the incident date, affected agent identifier, and a preliminary description of the loss.',
+  'The Insured shall maintain complete and accurate operational logs for all registered AI agents for a minimum period of ninety (90) days. Such logs shall include, at minimum, input records, output records, action timestamps, token consumption records, and any error or exception events.',
+  'Coverage under this policy is strictly contingent upon each registered AI agent operating within the behavioral parameters, model specifications, token limits, and action frequency limits disclosed to and approved by Canopy at the time of underwriting. Material deviation from registered parameters may void coverage for incidents arising during such deviation.',
+  'The Insured shall cooperate fully and in good faith with Canopy\'s claims investigation, including providing prompt access to operational logs, system records, relevant personnel, and any third-party documentation reasonably requested by Canopy or its appointed claims examiner.',
+  'This policy is subject to annual renewal. Coverage for each registered AI agent is contingent upon successful re-underwriting at renewal. Canopy reserves the right to modify terms, adjust sublimits, or decline renewal based on updated risk assessment, claims history, or material changes to agent operation.',
+  'The Insured shall promptly notify Canopy of any material change to a registered AI agent\'s operational parameters, underlying model, connected systems, action frequency, or deployment architecture. Coverage may be suspended pending re-underwriting review for material changes.',
+  'In the event of a covered loss, the Insured shall take all reasonable steps to mitigate further loss and prevent recurrence, including suspending the affected agent\'s operation if necessary. Failure to mitigate may reduce the covered loss amount proportionally.',
 ]
 
 const STANDARD_CLAIMS_PROCESS = [
-  'Submit a claim through the Canopy portal within 72 hours of incident discovery',
-  'Provide incident description, affected agent ID, and estimated financial impact',
-  'Canopy will acknowledge receipt and assign a claims examiner within 2 business days',
-  'Cooperate with investigation, including providing access to agent logs and related records',
-  'Canopy will issue a coverage determination within 30 days of receiving complete documentation',
-  'Approved claims will be paid within 15 business days of determination',
+  'Submit a First Notice of Loss through the Canopy claims portal within seventy-two (72) hours of incident discovery, including the affected agent identifier, incident date and time, and a preliminary estimate of financial impact.',
+  'Provide complete supporting documentation, including agent operational logs, affected end-user records, evidence of financial loss, and any communications related to the incident, within fourteen (14) calendar days of the First Notice of Loss.',
+  'A licensed claims examiner will be assigned within two (2) business days of receipt of a complete First Notice of Loss. The examiner will conduct an independent review of the incident, policy terms, and submitted documentation.',
+  'The Insured must provide full cooperation with the claims investigation, including access to systems, personnel, and records as reasonably required. Failure to cooperate may result in suspension of the claim.',
+  'Canopy will issue a written coverage determination within thirty (30) calendar days of receipt of complete documentation. The determination will state the covered amount, any applicable deductible, and the basis for the decision.',
+  'Approved claim payments will be issued within fifteen (15) business days of the written coverage determination, net of any applicable deductible. Payment will be made to the Insured organization unless otherwise directed in writing.',
 ]
 
 function generatePolicyNumber(): string {
@@ -143,6 +145,6 @@ export function generatePolicy(input: GeneratePolicyInput): PolicyDocument {
     exclusions: Array.from(allExclusions),
     conditions: Array.from(allConditions),
     claims_process: STANDARD_CLAIMS_PROCESS,
-    governing_law: 'State of Delaware, United States',
+    governing_law: 'This policy is governed by and construed in accordance with the laws of the State of Delaware, United States of America, without regard to conflict of law principles. Any dispute arising under this policy shall be subject to binding arbitration under the rules of the American Arbitration Association.',
   }
 }
