@@ -115,11 +115,43 @@ Output valid JSON only. This is an internal recommendation, not an underwriting 
   }
 }
 
+// New structured CoverageCheckResult (per spec)
+export type CoverageCheckResult = {
+  has_active_policy: boolean
+  policy_id: string | null
+  policy_number: string | null
+  agent_is_covered: boolean
+  agent_underwriting_status: string | null
+  amount_within_per_incident_limit: boolean
+  per_incident_limit: number | null
+  aggregate_limit: number | null
+  agent_sublimit: number | null
+  deductible: number | null
+  incident_within_policy_period: boolean
+  policy_effective_at: string | null
+  policy_expires_at: string | null
+  coverage_eligible: boolean
+  denial_reasons: string[]
+}
+
+export type PolicyTerms = {
+  covered_events: string[]
+  exclusions: string[]
+  conditions: string[]
+  per_incident_limit: number
+  aggregate_limit: number
+  deductible: number
+}
+
 const TriageResultSchema = z.object({
   triage_recommendation: z.enum(['likely_covered', 'needs_review', 'likely_not_covered', 'insufficient_information']),
   confidence: z.number().int().min(0).max(100),
   reasoning: z.string(),
+  applicable_covered_events: z.array(z.string()),
+  triggered_exclusions: z.array(z.string()),
+  breached_conditions: z.array(z.string()),
   recommended_payout: z.number().nullable(),
+  recommended_payout_basis: z.string(),
   flags: z.array(z.string()),
   next_steps: z.string(),
   requires_human_review: z.literal(true),
@@ -141,7 +173,7 @@ export async function triageClaim(input: {
   agent_description?: string | null
   coverage_limit: number
   per_incident_limit: number
-  // New usage-based fields
+  // Usage-based fields
   error_started_at?: string | null
   error_detected_at?: string | null
   actions_during_incident?: number | null
@@ -151,6 +183,10 @@ export async function triageClaim(input: {
   agent_max_actions_per_day?: number | null
   agent_uses_tool_calls?: boolean | null
   agent_detection_lag_minutes?: number | null
+  // Policy terms and coverage check
+  coverageCheck?: CoverageCheckResult | null
+  policyTerms?: PolicyTerms | null
+  agentSublimit?: number | null
 }): Promise<{ result: TriageResult | null; error: string | null; raw: string | null }> {
   try {
     const client = getClient()
@@ -163,7 +199,34 @@ export async function triageClaim(input: {
       damageWindowHours = Math.max(0, (detected - start) / (1000 * 60 * 60))
     }
 
-    const userMessage = JSON.stringify({
+    const cc = input.coverageCheck
+    const pt = input.policyTerms
+
+    const coverageCheckSection = cc ? `
+Coverage Check Result:
+- Has active policy: ${cc.has_active_policy ? 'yes' : 'no'}
+- Agent is covered: ${cc.agent_is_covered ? 'yes' : 'no'}
+- Amount within per-incident limit: ${cc.amount_within_per_incident_limit ? 'yes' : 'no'} (limit: $${cc.per_incident_limit?.toLocaleString() ?? 'N/A'})
+- Agent sublimit: $${(input.agentSublimit ?? cc.agent_sublimit)?.toLocaleString() ?? 'N/A'}
+- Deductible: $${cc.deductible?.toLocaleString() ?? 'N/A'}
+- Incident within policy period: ${cc.incident_within_policy_period ? 'yes' : 'no'}
+${cc.denial_reasons.length > 0 ? `- Coverage issues: ${cc.denial_reasons.join('; ')}` : '- No coverage issues detected'}
+` : ''
+
+    const policyTermsSection = pt ? `
+Policy Terms:
+
+Covered Events:
+${pt.covered_events.map((e, i) => `${i + 1}. ${e}`).join('\n')}
+
+Exclusions:
+${pt.exclusions.length > 0 ? pt.exclusions.map((e, i) => `${i + 1}. ${e}`).join('\n') : 'None specified'}
+
+Conditions:
+${pt.conditions.map((c, i) => `${i + 1}. ${c}`).join('\n')}
+` : ''
+
+    const claimData = {
       claim_description: input.description,
       financial_impact: input.financial_impact_description || 'Not provided',
       amount_claimed: input.amount_claimed,
@@ -182,12 +245,46 @@ export async function triageClaim(input: {
       agent_max_actions_per_day: input.agent_max_actions_per_day ?? 'Unknown',
       agent_uses_tool_calls: input.agent_uses_tool_calls ?? false,
       agent_detection_lag_minutes: input.agent_detection_lag_minutes ?? 'Unknown',
-    })
+    }
+
+    const userContent = `Please triage this claim and return a JSON object.
+
+Claim Data:
+${JSON.stringify(claimData, null, 2)}
+${policyTermsSection}
+${coverageCheckSection}
+
+Return only valid JSON with these exact fields:
+- triage_recommendation (one of: likely_covered, needs_review, likely_not_covered, insufficient_information)
+- confidence (integer 0-100)
+- reasoning (string — must reference specific policy language from the covered events, exclusions, and conditions above)
+- applicable_covered_events (array of strings — quote the specific covered event text that may apply)
+- triggered_exclusions (array of strings — quote the specific exclusion text that may apply)
+- breached_conditions (array of strings — any conditions that appear to have been breached)
+- recommended_payout (number or null)
+- recommended_payout_basis (string — explain how this number was derived, referencing sublimit, deductible, and per-incident limit)
+- flags (array of strings)
+- next_steps (string)
+- requires_human_review (must always be true)
+- damage_window_hours (number, hours between error start and detection, 0 if unknown)
+- frequency_multiplier (number, ratio of actions_during_incident to expected daily actions, 1.0 if unknown)
+- token_exposure_usd (number, estimated token cost during incident)
+- detection_lag_assessment (one of: reasonable, concerning, excessive)
+- cascade_risk (boolean, true if tool call chaining likely amplified damage)`
 
     const response = await client.messages.create({
       model: MODEL,
-      max_tokens: 1500,
-      system: `You are Canopy's claims triage assistant. You review claims made against AI agent deployments and produce a non-binding internal triage recommendation. You are fair, precise, and cautious. Follow the provided policy terms and flag uncertainty. Output valid JSON only. Do not make a final claims determination.
+      max_tokens: 2000,
+      system: `You are Canopy's claims triage assistant. You review claims made against AI agent liability policies and produce a non-binding internal triage recommendation for human claims examiners.
+
+You have access to the actual policy terms, coverage limits, and underwriting basis for the agent involved. Your role is to:
+1. Assess whether the described incident appears to fall within the covered events as written
+2. Flag any applicable exclusions that may limit or void coverage
+3. Assess the reasonableness of the claimed amount against the policy limits
+4. Identify any conditions that may have been breached (e.g. late notice, parameter deviation)
+5. Recommend a payout range if coverage appears applicable
+
+You are fair, precise, and cautious. You do not make final coverage determinations — that is the role of the human claims examiner. Output valid JSON only. Do not make a final claims determination. requires_human_review must always be true.
 
 When assessing AI agent claims, consider:
 - damage_window_hours: Time between error start and detection. Longer windows mean more accumulated damage.
@@ -198,19 +295,7 @@ When assessing AI agent claims, consider:
       messages: [
         {
           role: 'user',
-          content: `Please triage this claim and return a JSON object:\n\n${userMessage}\n\nReturn only valid JSON with these exact fields:
-- triage_recommendation (one of: likely_covered, needs_review, likely_not_covered, insufficient_information)
-- confidence (integer 0-100)
-- reasoning (string)
-- recommended_payout (number or null)
-- flags (array of strings)
-- next_steps (string)
-- requires_human_review (must always be true)
-- damage_window_hours (number, hours between error start and detection, 0 if unknown)
-- frequency_multiplier (number, ratio of actions_during_incident to expected daily actions, 1.0 if unknown)
-- token_exposure_usd (number, estimated token cost during incident)
-- detection_lag_assessment (one of: reasonable, concerning, excessive)
-- cascade_risk (boolean, true if tool call chaining likely amplified damage)`,
+          content: userContent,
         },
       ],
     })
@@ -229,6 +314,11 @@ When assessing AI agent claims, consider:
     if (typeof parsed.damage_window_hours !== 'number') parsed.damage_window_hours = damageWindowHours
     if (typeof parsed.frequency_multiplier !== 'number') parsed.frequency_multiplier = 1.0
     if (typeof parsed.token_exposure_usd !== 'number') parsed.token_exposure_usd = 0
+    // Ensure array defaults for new fields
+    if (!Array.isArray(parsed.applicable_covered_events)) parsed.applicable_covered_events = []
+    if (!Array.isArray(parsed.triggered_exclusions)) parsed.triggered_exclusions = []
+    if (!Array.isArray(parsed.breached_conditions)) parsed.breached_conditions = []
+    if (typeof parsed.recommended_payout_basis !== 'string') parsed.recommended_payout_basis = ''
 
     const validated = TriageResultSchema.safeParse(parsed)
     if (!validated.success) {
@@ -242,102 +332,122 @@ When assessing AI agent claims, consider:
   }
 }
 
-// Coverage check result type
-export interface CoverageCheckResult {
-  passed: boolean
-  reasons: string[]
-  active_policy: boolean
-  within_per_incident_limit: boolean
-  aggregate_not_exhausted: boolean
-  within_effective_period: boolean
-  agent_registered_before_incident: boolean
-  per_incident_limit: number
-  coverage_limit: number
-}
-
 export async function checkCoverage(input: {
   org_id: string
   agent_id?: string | null
   amount_claimed: number
   incident_date?: string | null
   error_started_at?: string | null
-  policy: {
+  policyDocument: {
     id: string
+    policy_number: string
     status: string
-    coverage_limit: number
+    aggregate_limit: number
     per_incident_limit: number
     effective_at?: string | null
-    renews_at?: string | null
+    expires_at?: string | null
+    document: {
+      covered_agents?: Array<{
+        agent_id: string
+        sublimit: number
+        deductible: number
+      }>
+    }
   } | null
-  agent_created_at?: string | null
+  agentUnderwritingStatus?: string | null
   existing_approved_claims_total: number
 }): Promise<CoverageCheckResult> {
-  const reasons: string[] = []
+  const denial_reasons: string[] = []
 
   // 1. Active policy check
-  const active_policy = input.policy?.status === 'active'
-  if (!active_policy) reasons.push('No active policy found')
+  const has_active_policy = input.policyDocument?.status === 'active'
+  const policy_id = input.policyDocument?.id ?? null
+  const policy_number = input.policyDocument?.policy_number ?? null
 
-  const per_incident_limit = input.policy?.per_incident_limit ?? 0
-  const coverage_limit = input.policy?.coverage_limit ?? 0
+  if (!has_active_policy) denial_reasons.push('No active policy found')
 
-  // 2. Per-incident limit check
-  const within_per_incident_limit = active_policy ? input.amount_claimed <= per_incident_limit : false
-  if (active_policy && !within_per_incident_limit) {
-    reasons.push(`Amount claimed ($${input.amount_claimed.toLocaleString()}) exceeds per-incident limit ($${per_incident_limit.toLocaleString()})`)
+  const per_incident_limit = input.policyDocument?.per_incident_limit ?? null
+  const aggregate_limit = input.policyDocument?.aggregate_limit ?? null
+
+  // 2. Agent covered check
+  let agent_is_covered = false
+  let agent_sublimit: number | null = null
+  let deductible: number | null = null
+
+  if (has_active_policy && input.agent_id) {
+    const coveredAgents = input.policyDocument?.document?.covered_agents ?? []
+    const agentEntry = coveredAgents.find((a) => a.agent_id === input.agent_id)
+    agent_is_covered = !!agentEntry
+    if (agentEntry) {
+      agent_sublimit = agentEntry.sublimit
+      deductible = agentEntry.deductible
+    }
+    if (!agent_is_covered) {
+      denial_reasons.push('The specified agent is not listed as a covered agent in the active policy')
+    }
+  } else if (has_active_policy && !input.agent_id) {
+    // No agent specified — treat as covered (org-level claim)
+    agent_is_covered = true
   }
 
-  // 3. Aggregate limit check
-  const remaining_aggregate = coverage_limit - input.existing_approved_claims_total
-  const aggregate_not_exhausted = active_policy ? remaining_aggregate >= input.amount_claimed : false
-  if (active_policy && !aggregate_not_exhausted) {
-    reasons.push(`Aggregate coverage limit may be exhausted (remaining: $${remaining_aggregate.toLocaleString()})`)
+  // 3. Agent underwriting status check
+  const agent_underwriting_status = input.agentUnderwritingStatus ?? null
+  if (has_active_policy && input.agent_id && agent_is_covered && agent_underwriting_status && agent_underwriting_status !== 'approved') {
+    denial_reasons.push(`Agent underwriting status is '${agent_underwriting_status}' — must be 'approved' for coverage`)
   }
 
-  // 4. Effective period check
-  let within_effective_period = false
-  if (active_policy && input.policy?.effective_at) {
+  // 4. Per-incident limit check
+  const amount_within_per_incident_limit = has_active_policy && per_incident_limit !== null
+    ? input.amount_claimed <= per_incident_limit
+    : false
+  if (has_active_policy && per_incident_limit !== null && !amount_within_per_incident_limit) {
+    denial_reasons.push(`Amount claimed ($${input.amount_claimed.toLocaleString()}) exceeds per-incident limit ($${per_incident_limit.toLocaleString()})`)
+  }
+
+  // 5. Incident within policy period check
+  const policy_effective_at = input.policyDocument?.effective_at ?? null
+  const policy_expires_at = input.policyDocument?.expires_at ?? null
+  let incident_within_policy_period = false
+
+  if (has_active_policy) {
     const incidentDate = input.incident_date || input.error_started_at
-    if (incidentDate) {
+    if (incidentDate && policy_effective_at) {
       const incident = new Date(incidentDate)
-      const effective = new Date(input.policy.effective_at)
-      const renews = input.policy.renews_at ? new Date(input.policy.renews_at) : null
-      within_effective_period = incident >= effective && (!renews || incident <= renews)
-      if (!within_effective_period) reasons.push('Incident date is outside policy effective period')
+      const effective = new Date(policy_effective_at)
+      const expires = policy_expires_at ? new Date(policy_expires_at) : null
+      incident_within_policy_period = incident >= effective && (!expires || incident <= expires)
+      if (!incident_within_policy_period) {
+        denial_reasons.push('Incident date falls outside the policy period')
+      }
     } else {
-      within_effective_period = true // No date to check against
-    }
-  } else {
-    within_effective_period = active_policy
-  }
-
-  // 5. Agent registration check
-  let agent_registered_before_incident = true
-  if (input.agent_created_at && (input.incident_date || input.error_started_at)) {
-    const incidentDate = new Date(input.incident_date || input.error_started_at!)
-    const agentDate = new Date(input.agent_created_at)
-    agent_registered_before_incident = agentDate <= incidentDate
-    if (!agent_registered_before_incident) {
-      reasons.push('Agent was registered after the incident date')
+      // No incident date to check — default to within period
+      incident_within_policy_period = true
     }
   }
 
-  const passed =
-    active_policy &&
-    within_per_incident_limit &&
-    aggregate_not_exhausted &&
-    within_effective_period &&
-    agent_registered_before_incident
+  const coverage_eligible =
+    has_active_policy &&
+    agent_is_covered &&
+    (!input.agent_id || !agent_underwriting_status || agent_underwriting_status === 'approved') &&
+    amount_within_per_incident_limit &&
+    incident_within_policy_period &&
+    denial_reasons.length === 0
 
   return {
-    passed,
-    reasons,
-    active_policy,
-    within_per_incident_limit,
-    aggregate_not_exhausted,
-    within_effective_period,
-    agent_registered_before_incident,
+    has_active_policy,
+    policy_id,
+    policy_number,
+    agent_is_covered,
+    agent_underwriting_status,
+    amount_within_per_incident_limit,
     per_incident_limit,
-    coverage_limit,
+    aggregate_limit,
+    agent_sublimit,
+    deductible,
+    incident_within_policy_period,
+    policy_effective_at,
+    policy_expires_at,
+    coverage_eligible,
+    denial_reasons,
   }
 }

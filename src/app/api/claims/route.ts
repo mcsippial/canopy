@@ -3,9 +3,10 @@ import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedUser, getUserOrgMembership, unauthorizedResponse, badRequestResponse, serverErrorResponse } from '@/lib/auth'
-import { triageClaim, checkCoverage } from '@/lib/ai'
+import { triageClaim, checkCoverage, type CoverageCheckResult } from '@/lib/ai'
 import { sendClaimConfirmation, sendClaimAlert } from '@/lib/email'
 import { PLAN_LIMITS } from '@/types'
+import type { PolicyDocument } from '@/lib/policyGenerator'
 
 const PublicClaimSchema = z.object({
   embed_key: z.string().min(1),
@@ -62,20 +63,33 @@ export async function POST(req: NextRequest) {
 
   const org = Array.isArray(badge.organizations) ? badge.organizations[0] : badge.organizations
 
-  // Fetch active policy for coverage check
-  const { data: activePolicy } = await supabase
-    .from('policies')
+  // Fetch active policy_document for coverage check
+  const { data: activePolicyDoc } = await supabase
+    .from('policy_documents')
     .select('*')
     .eq('org_id', badge.org_id)
     .eq('status', 'active')
-    .single()
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
   // Fetch agent if provided
-  let agentData: { name?: string; type?: string; description?: string; created_at?: string; avg_tokens_per_action?: number; max_actions_per_day?: number; uses_tool_calls?: boolean; detection_lag_minutes?: number } | null = null
+  let agentData: {
+    name?: string
+    type?: string
+    description?: string
+    created_at?: string
+    avg_tokens_per_action?: number
+    max_actions_per_day?: number
+    uses_tool_calls?: boolean
+    detection_lag_minutes?: number
+    underwriting_status?: string
+  } | null = null
+
   if (parsed.data.agent_id) {
     const { data } = await supabase
       .from('agents')
-      .select('type, description, created_at, avg_tokens_per_action, max_actions_per_day, uses_tool_calls, detection_lag_minutes')
+      .select('type, description, created_at, avg_tokens_per_action, max_actions_per_day, uses_tool_calls, detection_lag_minutes, underwriting_status')
       .eq('id', parsed.data.agent_id)
       .single()
     agentData = data
@@ -93,17 +107,36 @@ export async function POST(req: NextRequest) {
     0
   )
 
-  // Run coverage check
-  const coverageResult = await checkCoverage({
+  // Run coverage check using policy_documents
+  const policyDocForCheck = activePolicyDoc ? {
+    id: activePolicyDoc.id as string,
+    policy_number: activePolicyDoc.policy_number as string,
+    status: activePolicyDoc.status as string,
+    aggregate_limit: Number(activePolicyDoc.aggregate_limit),
+    per_incident_limit: Number(activePolicyDoc.per_incident_limit),
+    effective_at: activePolicyDoc.effective_at as string | null,
+    expires_at: activePolicyDoc.expires_at as string | null,
+    document: activePolicyDoc.document as { covered_agents?: Array<{ agent_id: string; sublimit: number; deductible: number }> },
+  } : null
+
+  const coverageResult: CoverageCheckResult = await checkCoverage({
     org_id: badge.org_id,
     agent_id: parsed.data.agent_id,
     amount_claimed: parsed.data.amount_claimed,
     incident_date: parsed.data.incident_date,
     error_started_at: parsed.data.error_started_at,
-    policy: activePolicy || null,
-    agent_created_at: agentData?.created_at,
+    policyDocument: policyDocForCheck,
+    agentUnderwritingStatus: agentData?.underwriting_status,
     existing_approved_claims_total: existingApproved,
   })
+
+  // Determine claim status based on coverage eligibility
+  const claimStatus = coverageResult.coverage_eligible ? 'submitted' : 'under_review'
+
+  // Build denial note for initial status event
+  const initialEventMessage = coverageResult.coverage_eligible
+    ? 'Your claim has been received and is being reviewed.'
+    : `Your claim has been received and is under review. Coverage check identified the following issue(s): ${coverageResult.denial_reasons.join('; ')}`
 
   // Compute damage_multiplier
   let damageMultiplier: number | null = null
@@ -134,7 +167,7 @@ export async function POST(req: NextRequest) {
       description: parsed.data.description,
       financial_impact_description: parsed.data.financial_impact_description || null,
       amount_claimed: parsed.data.amount_claimed,
-      status: 'submitted',
+      status: claimStatus,
       ai_triage_status: 'not_started',
       error_started_at: parsed.data.error_started_at || null,
       error_detected_at: parsed.data.error_detected_at || null,
@@ -152,8 +185,8 @@ export async function POST(req: NextRequest) {
   // Create initial status event
   await supabase.from('claim_status_events').insert({
     claim_id: claim.id,
-    status: 'submitted',
-    message: 'Your claim has been received and is being reviewed.',
+    status: claimStatus,
+    message: initialEventMessage,
     public: true,
   })
 
@@ -210,6 +243,19 @@ export async function POST(req: NextRequest) {
       const planKey = (org?.plan || 'none') as keyof typeof PLAN_LIMITS
       const limits = PLAN_LIMITS[planKey]
 
+      // Extract policy terms from policy document for AI triage
+      const policyDoc = activePolicyDoc?.document as PolicyDocument | undefined
+      const agentEntry = policyDoc?.covered_agents?.find((a) => a.agent_id === parsed.data.agent_id)
+
+      const policyTerms = policyDoc ? {
+        covered_events: policyDoc.covered_events ?? [],
+        exclusions: policyDoc.exclusions ?? [],
+        conditions: policyDoc.conditions ?? [],
+        per_incident_limit: Number(activePolicyDoc?.per_incident_limit ?? limits.per_incident),
+        aggregate_limit: Number(activePolicyDoc?.aggregate_limit ?? limits.coverage),
+        deductible: agentEntry?.deductible ?? 0,
+      } : null
+
       const { result, error: aiError } = await triageClaim({
         description: parsed.data.description,
         financial_impact_description: parsed.data.financial_impact_description,
@@ -217,8 +263,8 @@ export async function POST(req: NextRequest) {
         incident_date: parsed.data.incident_date,
         agent_type: agentData?.type,
         agent_description: agentData?.description,
-        coverage_limit: activePolicy?.coverage_limit ?? limits.coverage,
-        per_incident_limit: activePolicy?.per_incident_limit ?? limits.per_incident,
+        coverage_limit: Number(activePolicyDoc?.aggregate_limit ?? limits.coverage),
+        per_incident_limit: Number(activePolicyDoc?.per_incident_limit ?? limits.per_incident),
         error_started_at: parsed.data.error_started_at,
         error_detected_at: parsed.data.error_detected_at,
         actions_during_incident: parsed.data.actions_during_incident,
@@ -228,6 +274,9 @@ export async function POST(req: NextRequest) {
         agent_max_actions_per_day: agentData?.max_actions_per_day,
         agent_uses_tool_calls: agentData?.uses_tool_calls,
         agent_detection_lag_minutes: agentData?.detection_lag_minutes,
+        coverageCheck: coverageResult,
+        policyTerms,
+        agentSublimit: agentEntry?.sublimit ?? null,
       })
 
       if (result) {
@@ -248,10 +297,10 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     claim_number: claimNumber,
     public_status_token: statusToken,
-    status: 'submitted',
+    status: claimStatus,
     coverage_check: {
-      passed: coverageResult.passed,
-      reasons: coverageResult.reasons,
+      passed: coverageResult.coverage_eligible,
+      reasons: coverageResult.denial_reasons,
     },
   }, { status: 201 })
 }

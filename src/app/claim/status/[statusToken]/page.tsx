@@ -9,6 +9,7 @@ interface PublicClaimData {
   status: string
   amount_claimed: number
   amount_approved?: number
+  deductible?: number
   incident_date?: string
   created_at: string
   events: Array<{
@@ -17,6 +18,15 @@ interface PublicClaimData {
     message: string
     created_at: string
   }>
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  submitted: 'Submitted',
+  under_review: 'Under Review',
+  pending_docs: 'Pending Documentation',
+  approved: 'Approved',
+  denied: 'Denied',
+  paid: 'Paid',
 }
 
 const statusIcons: Record<string, React.ReactNode> = {
@@ -73,6 +83,12 @@ export default function ClaimStatusPage({ params }: { params: { statusToken: str
     </div>
   )
 
+  const humanStatus = STATUS_LABELS[data.status] ?? data.status
+  const isApproved = data.status === 'approved' || data.status === 'paid'
+  const netApproved = isApproved && data.amount_approved != null && data.deductible != null
+    ? Math.max(0, data.amount_approved - data.deductible)
+    : data.amount_approved
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-lg mx-auto">
@@ -92,7 +108,11 @@ export default function ClaimStatusPage({ params }: { params: { statusToken: str
               <p className="text-xs text-gray-500 mb-1">Claim reference</p>
               <p className="font-mono font-bold text-[#1a1a2e]">{data.claim_number}</p>
             </div>
-            <StatusPill status={data.status} />
+            <div className="text-right">
+              <p className="text-xs text-gray-500 mb-1">Status</p>
+              <StatusPill status={data.status} />
+              <p className="text-xs text-gray-500 mt-1">{humanStatus}</p>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -100,10 +120,13 @@ export default function ClaimStatusPage({ params }: { params: { statusToken: str
               <p className="text-xs text-gray-500 mb-1">Amount claimed</p>
               <p className="font-semibold text-[#1a1a2e]">${Number(data.amount_claimed).toLocaleString()}</p>
             </div>
-            {data.amount_approved != null && (
+            {isApproved && netApproved != null && (
               <div>
                 <p className="text-xs text-gray-500 mb-1">Amount approved</p>
-                <p className="font-semibold text-green-600">${Number(data.amount_approved).toLocaleString()}</p>
+                <p className="font-semibold text-green-600">${Number(netApproved).toLocaleString()}</p>
+                {data.deductible != null && data.deductible > 0 && (
+                  <p className="text-xs text-gray-400">(after ${Number(data.deductible).toLocaleString()} deductible)</p>
+                )}
               </div>
             )}
             <div>
@@ -117,6 +140,11 @@ export default function ClaimStatusPage({ params }: { params: { statusToken: str
               </div>
             )}
           </div>
+        </div>
+
+        {/* Review message */}
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6 text-sm text-blue-800">
+          Your claim is being reviewed by our claims team. Final coverage determinations are made by licensed claims examiners.
         </div>
 
         {/* Timeline */}
