@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const { companyName, fullName, email, password } = parsed.data
     const supabase = createAdminClient()
 
-    // Create the auth user
+    // Create the auth user (email_confirm: true skips email verification)
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
@@ -66,16 +66,11 @@ export async function POST(req: NextRequest) {
     // Create organization
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .insert({
-        name: companyName,
-        slug,
-        plan: 'none',
-      })
+      .insert({ name: companyName, slug, plan: 'none' })
       .select()
       .single()
 
     if (orgError || !org) {
-      // Cleanup user on failure
       await supabase.auth.admin.deleteUser(userId)
       return NextResponse.json({ error: 'Failed to create organization' }, { status: 500 })
     }
@@ -100,41 +95,8 @@ export async function POST(req: NextRequest) {
       active: false,
     })
 
-    // Sign in the user to get a session
-    const { createClient } = await import('@supabase/supabase-js')
-    const anonClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-    const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (signInError || !signInData.session) {
-      return NextResponse.json({ error: 'Account created but sign-in failed. Please log in manually.' }, { status: 200 })
-    }
-
-    // Set cookies using the session
-    const response = NextResponse.json({ success: true, orgId: org.id })
-
-    // Set auth cookies
-    response.cookies.set('sb-access-token', signInData.session.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: signInData.session.expires_in,
-      path: '/',
-    })
-    response.cookies.set('sb-refresh-token', signInData.session.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30,
-      path: '/',
-    })
-
-    return response
+    // Return success — client will sign in using Supabase browser client
+    return NextResponse.json({ success: true })
   } catch (err) {
     console.error('Signup error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

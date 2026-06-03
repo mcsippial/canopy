@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { createBrowserClient } from '@supabase/ssr'
 import { Logo } from '@/components/ui/Logo'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -22,6 +23,7 @@ export default function SignupPage() {
     e.preventDefault()
     setLoading(true)
     try {
+      // Step 1: Create account + org via API
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -32,6 +34,23 @@ export default function SignupPage() {
         toast.error(data.error || 'Signup failed')
         return
       }
+
+      // Step 2: Sign in with Supabase browser client to establish session cookies
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      })
+
+      if (signInError) {
+        toast.error('Account created but sign-in failed. Please log in manually.')
+        router.push('/login')
+        return
+      }
+
       toast.success('Account created! Redirecting...')
       router.push('/dashboard')
     } catch {
