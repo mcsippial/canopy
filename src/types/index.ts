@@ -47,6 +47,9 @@ export interface Agent {
   max_tool_call_depth?: number
   human_in_loop?: boolean
   detection_lag_minutes?: number
+  underwriting_status?: 'pending' | 'approved' | 'declined' | 'referred' | 'expired'
+  current_underwriting_id?: string | null
+  risk_score_locked_at?: string | null
   created_at: string
   updated_at: string
 }

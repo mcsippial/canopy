@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Bot, Plus, RefreshCw, X } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Bot, Plus, RefreshCw, X, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea, Select } from '@/components/ui/Input'
 import { StatusPill } from '@/components/ui/StatusPill'
 import type { Agent } from '@/types'
+import type { UnderwritingDecision } from '@/lib/underwriting'
 
 const AI_MODELS = [
   { label: 'GPT-4o', value: 'gpt-4o', provider: 'openai' },
@@ -31,6 +32,165 @@ function RiskScore({ score }: { score: number | undefined | null }) {
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function formatCurrency(n: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
+}
+
+type UnderwritingRecord = {
+  id: string
+  agent_id: string
+  decision: 'approved' | 'declined' | 'referred'
+  eligible: boolean
+  recommended_plan: string | null
+  per_agent_sublimit: number
+  per_incident_limit: number
+  deductible: number
+  exclusions: string[]
+  conditions: string[]
+  underwriting_basis: UnderwritingDecision['underwriting_basis']
+  risk_score_locked: number
+  locked_at: string
+}
+
+function UnderwritingBadge({
+  agent,
+  underwriting,
+  onUnderwrite,
+  underwritingId,
+}: {
+  agent: Agent
+  underwriting: UnderwritingRecord | null
+  onUnderwrite: (id: string) => void
+  underwritingId: string | null
+}) {
+  const isUnderwriting = underwritingId === agent.id
+
+  if (!agent.risk_score) {
+    return <span className="text-gray-400 text-xs">Score first</span>
+  }
+
+  if (!underwriting || agent.underwriting_status === 'pending') {
+    return (
+      <button
+        onClick={() => onUnderwrite(agent.id)}
+        disabled={isUnderwriting}
+        className="text-xs text-[#5DCAA5] hover:text-[#4ab893] font-medium disabled:opacity-50 flex items-center gap-1"
+      >
+        {isUnderwriting ? (
+          <><RefreshCw size={12} className="animate-spin" /> Running...</>
+        ) : (
+          'Run underwriting →'
+        )}
+      </button>
+    )
+  }
+
+  if (underwriting.decision === 'approved') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded">
+        <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+        Approved — {formatCurrency(underwriting.per_agent_sublimit)} sublimit
+      </span>
+    )
+  }
+
+  if (underwriting.decision === 'declined') {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded cursor-help"
+        title={underwriting.underwriting_basis ? `Risk score: ${underwriting.risk_score_locked}` : ''}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+        Declined
+      </span>
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+      Referred
+    </span>
+  )
+}
+
+function UnderwritingResultCard({ underwriting }: { underwriting: UnderwritingRecord }) {
+  const decisionColors = {
+    approved: 'border-green-200 bg-green-50',
+    declined: 'border-red-200 bg-red-50',
+    referred: 'border-amber-200 bg-amber-50',
+  }
+  const badgeColors = {
+    approved: 'bg-green-100 text-green-800',
+    declined: 'bg-red-100 text-red-800',
+    referred: 'bg-amber-100 text-amber-800',
+  }
+  const decisionLabels = {
+    approved: 'Approved',
+    declined: 'Declined',
+    referred: 'Pending Manual Review',
+  }
+
+  return (
+    <div className={`mt-3 p-4 rounded-lg border ${decisionColors[underwriting.decision]}`}>
+      <div className="flex items-center justify-between mb-3">
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${badgeColors[underwriting.decision]}`}>
+          {decisionLabels[underwriting.decision]}
+        </span>
+        <span className="text-xs text-gray-500">
+          Risk score locked as of {formatDate(underwriting.locked_at)}
+        </span>
+      </div>
+
+      {underwriting.decision === 'declined' && (
+        <p className="text-sm text-red-700 mb-2">{underwriting.underwriting_basis ? 'See reason above' : 'Agent does not meet underwriting criteria'}</p>
+      )}
+      {underwriting.decision === 'referred' && (
+        <p className="text-sm text-amber-700 mb-2">Referred to manual review. Our underwriting team will be in touch.</p>
+      )}
+
+      {underwriting.decision !== 'declined' && underwriting.per_agent_sublimit > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <div>
+            <p className="text-xs text-gray-500">Sublimit</p>
+            <p className="text-sm font-semibold">{formatCurrency(underwriting.per_agent_sublimit)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Per Incident</p>
+            <p className="text-sm font-semibold">{formatCurrency(underwriting.per_incident_limit)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Deductible</p>
+            <p className="text-sm font-semibold">{formatCurrency(underwriting.deductible)}</p>
+          </div>
+        </div>
+      )}
+
+      {underwriting.exclusions && underwriting.exclusions.length > 0 && (
+        <div className="mb-2">
+          <p className="text-xs font-medium text-gray-600 mb-1">Key Exclusions</p>
+          <ul className="space-y-0.5">
+            {underwriting.exclusions.slice(0, 3).map((ex, i) => (
+              <li key={i} className="text-xs text-gray-500">• {ex}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {underwriting.conditions && underwriting.conditions.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-gray-600 mb-1">Conditions</p>
+          <ul className="space-y-0.5">
+            {underwriting.conditions.slice(0, 2).map((c, i) => (
+              <li key={i} className="text-xs text-gray-500">• {c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
 }
 
 type FormState = {
@@ -71,23 +231,42 @@ const defaultForm: FormState = {
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([])
+  const [underwritings, setUnderwritings] = useState<Record<string, UnderwritingRecord>>({})
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [scoringId, setScoringId] = useState<string | null>(null)
+  const [underwritingId, setUnderwritingId] = useState<string | null>(null)
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
 
   const [form, setForm] = useState<FormState>(defaultForm)
 
-  async function fetchAgents() {
+  async function fetchUnderwriting(agentId: string) {
+    const res = await fetch(`/api/underwriting/${agentId}`)
+    if (res.ok) {
+      const data = await res.json()
+      if (data.underwriting) {
+        setUnderwritings(prev => ({ ...prev, [agentId]: data.underwriting }))
+      }
+    }
+  }
+
+  const fetchAgents = useCallback(async () => {
     const res = await fetch('/api/agents')
     if (res.ok) {
       const data = await res.json()
       setAgents(data)
+      for (const agent of data) {
+        if (agent.current_underwriting_id) {
+          fetchUnderwriting(agent.id)
+        }
+      }
     }
     setLoading(false)
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  useEffect(() => { fetchAgents() }, [])
+  useEffect(() => { fetchAgents() }, [fetchAgents])
 
   function handleModelChange(modelValue: string) {
     const model = AI_MODELS.find(m => m.value === modelValue)
@@ -142,6 +321,13 @@ export default function AgentsPage() {
   }
 
   async function handleRescore(agentId: string) {
+    const agent = agents.find(a => a.id === agentId)
+    if (agent?.risk_score_locked_at) {
+      const confirmed = window.confirm(
+        'Re-scoring will invalidate the current underwriting decision and require re-underwriting. Continue?'
+      )
+      if (!confirmed) return
+    }
     setScoringId(agentId)
     try {
       const res = await fetch(`/api/agents/${agentId}/score`, { method: 'POST' })
@@ -150,12 +336,44 @@ export default function AgentsPage() {
         toast.error(data.error || 'Re-scoring failed')
         return
       }
-      toast.success('Risk score updated')
+      if (data._warning) {
+        toast.warning(data._warning)
+      } else {
+        toast.success('Risk score updated')
+      }
+      // Remove old underwriting if invalidated
+      if (data.underwriting_status === 'pending') {
+        setUnderwritings(prev => {
+          const next = { ...prev }
+          delete next[agentId]
+          return next
+        })
+      }
       setAgents(agents.map(a => a.id === agentId ? { ...a, ...data } : a))
     } catch {
       toast.error('Re-scoring failed')
     } finally {
       setScoringId(null)
+    }
+  }
+
+  async function handleUnderwrite(agentId: string) {
+    setUnderwritingId(agentId)
+    try {
+      const res = await fetch(`/api/agents/${agentId}/underwrite`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Underwriting failed')
+        return
+      }
+      toast.success(`Underwriting complete: ${data.decision.decision}`)
+      setAgents(agents.map(a => a.id === agentId ? { ...a, ...data.agent } : a))
+      setUnderwritings(prev => ({ ...prev, [agentId]: data.underwriting }))
+      setExpandedAgent(agentId)
+    } catch {
+      toast.error('Underwriting failed')
+    } finally {
+      setUnderwritingId(null)
     }
   }
 
@@ -191,48 +409,82 @@ export default function AgentsPage() {
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Type</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Model</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Risk Score</th>
+                <th className="text-left px-6 py-3 font-medium text-gray-600">Underwriting</th>
+                <th className="text-left px-6 py-3 font-medium text-gray-600">Sublimit</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Status</th>
-                <th className="text-left px-6 py-3 font-medium text-gray-600">Registered</th>
                 <th className="px-6 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {agents.map((agent) => (
-                <tr key={agent.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-[#1a1a2e]">{agent.name}</div>
-                    {agent.description && (
-                      <div className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">{agent.description}</div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-gray-600 capitalize">{agent.type.replace(/_/g, ' ')}</td>
-                  <td className="px-6 py-4 text-gray-500 text-xs">
-                    {agent.model_name ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                        {agent.model_name}
-                      </span>
-                    ) : '—'}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <RiskScore score={agent.risk_score} />
-                      {agent.risk_level && <StatusPill status={agent.risk_level} />}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4"><StatusPill status={agent.status} /></td>
-                  <td className="px-6 py-4 text-gray-500">{formatDate(agent.created_at)}</td>
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={() => handleRescore(agent.id)}
-                      disabled={scoringId === agent.id}
-                      className="text-gray-400 hover:text-[#5DCAA5] transition-colors disabled:opacity-50"
-                      title="Re-run risk scoring"
+              {agents.map((agent) => {
+                const uw = underwritings[agent.id] ?? null
+                return (
+                  <>
+                    <tr
+                      key={agent.id}
+                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => setExpandedAgent(expandedAgent === agent.id ? null : agent.id)}
                     >
-                      <RefreshCw size={16} className={scoringId === agent.id ? 'animate-spin' : ''} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-[#1a1a2e]">{agent.name}</div>
+                        {agent.description && (
+                          <div className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">{agent.description}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-gray-600 capitalize">{agent.type.replace(/_/g, ' ')}</td>
+                      <td className="px-6 py-4 text-gray-500 text-xs">
+                        {agent.model_name ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                            {agent.model_name}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <RiskScore score={agent.risk_score} />
+                          {agent.risk_level && <StatusPill status={agent.risk_level} />}
+                          {agent.risk_score_locked_at && (
+                            <span className="text-xs text-gray-400" title={`Score locked ${formatDate(agent.risk_score_locked_at)}`}>🔒</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        <UnderwritingBadge
+                          agent={agent}
+                          underwriting={uw}
+                          onUnderwrite={handleUnderwrite}
+                          underwritingId={underwritingId}
+                        />
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {uw && uw.decision === 'approved'
+                          ? <span className="text-green-700 font-medium">{formatCurrency(uw.per_agent_sublimit)}</span>
+                          : <span className="text-gray-400">—</span>}
+                      </td>
+                      <td className="px-6 py-4"><StatusPill status={agent.status} /></td>
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleRescore(agent.id)}
+                          disabled={scoringId === agent.id}
+                          className="text-gray-400 hover:text-[#5DCAA5] transition-colors disabled:opacity-50"
+                          title={agent.risk_score_locked_at ? 'Re-score (will invalidate underwriting)' : 'Re-run risk scoring'}
+                        >
+                          {agent.risk_score_locked_at
+                            ? <AlertTriangle size={16} className="text-amber-400" />
+                            : <RefreshCw size={16} className={scoringId === agent.id ? 'animate-spin' : ''} />}
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedAgent === agent.id && uw && (
+                      <tr key={`${agent.id}-detail`}>
+                        <td colSpan={8} className="px-6 pb-4">
+                          <UnderwritingResultCard underwriting={uw} />
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -372,7 +624,6 @@ export default function AgentsPage() {
                     />
                   </div>
 
-                  {/* Uses tool calls toggle */}
                   <div className="flex items-center justify-between py-2">
                     <div>
                       <div className="text-sm font-medium text-gray-700">Uses tool calls?</div>
@@ -400,7 +651,6 @@ export default function AgentsPage() {
                     />
                   )}
 
-                  {/* Human in the loop toggle */}
                   <div className="flex items-center justify-between py-2">
                     <div>
                       <div className="text-sm font-medium text-gray-700">Human in the loop?</div>
