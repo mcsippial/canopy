@@ -4,6 +4,7 @@ import { Bot, Users, Shield, FileText, TrendingUp, Activity } from 'lucide-react
 import { StatusPill } from '@/components/ui/StatusPill'
 import { PLAN_LIMITS } from '@/types'
 import Link from 'next/link'
+import { OnboardingChecklist } from '@/components/dashboard/OnboardingChecklist'
 
 function formatCurrency(amount: number) {
   if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`
@@ -97,6 +98,9 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold text-[#1a1a2e]">Overview</h1>
         <p className="text-gray-600 mt-1">Welcome back. Here&apos;s your coverage summary.</p>
       </div>
+
+      {/* Onboarding checklist */}
+      <OnboardingChecklist />
 
       {/* Stats grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

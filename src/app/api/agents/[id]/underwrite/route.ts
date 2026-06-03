@@ -73,6 +73,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   if (updateError) return serverErrorResponse()
 
+  // Create alert if agent was declined
+  if (decision.decision === 'declined') {
+    await supabase.from('alerts').insert({
+      org_id: membership.org_id,
+      agent_id: params.id,
+      alert_type: 'agent_flagged',
+      severity: 'critical',
+      title: `Agent declined for coverage: ${agent.name}`,
+      message: `Underwriting decision: declined. The agent does not meet eligibility requirements for coverage.`,
+      action_url: '/dashboard/agents',
+      metadata: { agent_id: params.id, decision: decision.decision },
+    })
+  }
+
   return NextResponse.json({
     agent: updatedAgent,
     underwriting: underwritingRecord,

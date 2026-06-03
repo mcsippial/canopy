@@ -114,5 +114,28 @@ export async function POST(req: NextRequest) {
       .eq('id', agentId)
   }
 
+  // Create alert for policy violations and anomalies
+  if (log.actionType === 'policy_violation' || log.actionType === 'anomaly') {
+    const alertType = log.actionType === 'policy_violation' ? 'policy_violation' : 'anomaly_detected'
+    const alertSeverity = severity === 'critical' ? 'critical' : 'warning'
+    const title = log.actionType === 'policy_violation'
+      ? `Policy violation: ${log.toolName}`
+      : `Anomaly detected: ${log.toolName}`
+    const message = log.violationReason
+      ? `${log.blocked ? 'Blocked' : 'Flagged'} — ${log.violationReason}`
+      : `${log.blocked ? 'Blocked' : 'Flagged'} tool call on agent ${agentId}`
+
+    await supabase.from('alerts').insert({
+      org_id: badge.org_id,
+      agent_id: agentId,
+      alert_type: alertType,
+      severity: alertSeverity,
+      title,
+      message,
+      action_url: '/dashboard/audit',
+      metadata: { toolName: log.toolName, blocked: log.blocked, violationReason: log.violationReason },
+    })
+  }
+
   return NextResponse.json({ ok: true })
 }

@@ -14,17 +14,22 @@ import {
   Shield,
   ChevronRight,
   Activity,
+  ScrollText,
+  Bell,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { AlertBell } from './AlertBell'
 
 const navItems = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/agents', label: 'Agents', icon: Bot },
   { href: '/dashboard/usage', label: 'Usage', icon: Activity },
+  { href: '/dashboard/audit', label: 'Audit Log', icon: ScrollText },
   { href: '/dashboard/users', label: 'Covered Users', icon: Users },
   { href: '/dashboard/policy', label: 'Policy', icon: Shield },
   { href: '/dashboard/claims', label: 'Claims', icon: FileText },
+  { href: '/dashboard/alerts', label: 'Alerts', icon: Bell },
   { href: '/dashboard/badge', label: 'API & Badge', icon: Code2 },
   { href: '/dashboard/billing', label: 'Billing', icon: CreditCard },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
@@ -56,12 +61,15 @@ export function DashboardSidebar({ org, userRole }: Props) {
     <aside className="w-64 bg-[#1a1a2e] flex flex-col min-h-screen flex-shrink-0">
       {/* Logo */}
       <div className="p-6 border-b border-white/10">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="bg-[#5DCAA5]/20 p-1.5 rounded-lg">
-            <Shield size={20} className="text-[#5DCAA5]" />
-          </div>
-          <span className="text-white font-bold text-lg">Canopy</span>
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link href="/dashboard" className="flex items-center gap-2">
+            <div className="bg-[#5DCAA5]/20 p-1.5 rounded-lg">
+              <Shield size={20} className="text-[#5DCAA5]" />
+            </div>
+            <span className="text-white font-bold text-lg">Canopy</span>
+          </Link>
+          <AlertBell />
+        </div>
         {org && (
           <div className="mt-3">
             <p className="text-white/90 text-sm font-medium truncate">{org.name}</p>

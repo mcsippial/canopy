@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileText, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
+import { FileText, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle, MessageSquare, Send } from 'lucide-react'
 import { StatusPill } from '@/components/ui/StatusPill'
 import type { Claim } from '@/types'
 import type { CoverageCheckResult } from '@/lib/ai'
@@ -170,6 +170,263 @@ function TriageResult({ result }: { result: Record<string, unknown> | null | und
   )
 }
 
+interface ClaimNote {
+  id: string
+  note: string
+  user_id: string | null
+  created_at: string
+}
+
+function ClaimsExaminerPanel({ claimId }: { claimId: string }) {
+  const [notes, setNotes] = useState<ClaimNote[]>([])
+  const [newNote, setNewNote] = useState('')
+  const [addingNote, setAddingNote] = useState(false)
+  const [docRequest, setDocRequest] = useState('')
+  const [showDocModal, setShowDocModal] = useState(false)
+  const [sendingDocRequest, setSendingDocRequest] = useState(false)
+  const [examinerStatus, setExaminerStatus] = useState('')
+  const [amountApproved, setAmountApproved] = useState('')
+  const [rationale, setRationale] = useState('')
+  const [updatingExaminer, setUpdatingExaminer] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/claims/${claimId}/notes`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((d) => setNotes(Array.isArray(d) ? d : []))
+      .catch(() => {})
+  }, [claimId])
+
+  async function handleAddNote(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newNote.trim()) return
+    setAddingNote(true)
+    try {
+      const res = await fetch(`/api/claims/${claimId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: newNote }),
+      })
+      if (res.ok) {
+        const created = await res.json()
+        setNotes((prev) => [...prev, created])
+        setNewNote('')
+        toast.success('Note added')
+      } else {
+        toast.error('Failed to add note')
+      }
+    } catch {
+      toast.error('Failed to add note')
+    } finally {
+      setAddingNote(false)
+    }
+  }
+
+  async function handleExaminerStatusUpdate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!examinerStatus) return
+    if (rationale.length < 20) {
+      toast.error('Decision rationale must be at least 20 characters')
+      return
+    }
+    setUpdatingExaminer(true)
+    try {
+      const publicMessage = examinerStatus === 'approved'
+        ? 'Your claim has been approved. We will be in touch regarding payment.'
+        : examinerStatus === 'denied'
+        ? 'After review, we are unable to approve this claim. Please contact us if you have questions.'
+        : `Your claim status has been updated to: ${examinerStatus.replace(/_/g, ' ')}.`
+
+      const body: Record<string, unknown> = {
+        status: examinerStatus,
+        message: publicMessage,
+      }
+      if (amountApproved && ['approved', 'paid'].includes(examinerStatus)) {
+        body.amount_approved = parseFloat(amountApproved)
+      }
+
+      const res = await fetch(`/api/claims/${claimId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        // Also save rationale as internal note
+        await fetch(`/api/claims/${claimId}/notes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ note: `[Decision rationale — ${examinerStatus}] ${rationale}` }),
+        })
+        toast.success('Status updated')
+        window.location.reload()
+      } else {
+        const d = await res.json()
+        toast.error(d.error || 'Update failed')
+      }
+    } catch {
+      toast.error('Update failed')
+    } finally {
+      setUpdatingExaminer(false)
+    }
+  }
+
+  async function handleDocRequest(e: React.FormEvent) {
+    e.preventDefault()
+    if (!docRequest.trim()) return
+    setSendingDocRequest(true)
+    try {
+      const res = await fetch(`/api/claims/${claimId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'pending_docs',
+          message: `Additional documentation requested: ${docRequest}`,
+          public: true,
+        }),
+      })
+      if (res.ok) {
+        toast.success('Documentation request sent')
+        setShowDocModal(false)
+        setDocRequest('')
+        window.location.reload()
+      } else {
+        toast.error('Failed to send request')
+      }
+    } catch {
+      toast.error('Failed to send request')
+    } finally {
+      setSendingDocRequest(false)
+    }
+  }
+
+  return (
+    <div className="border border-amber-200 bg-amber-50 rounded-xl p-5 mt-4">
+      <h4 className="text-sm font-bold text-amber-900 mb-4 flex items-center gap-2">
+        <MessageSquare size={16} />
+        Claims Examiner Panel — Internal
+      </h4>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Notes */}
+        <div>
+          <h5 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Internal Notes</h5>
+          {notes.length === 0 ? (
+            <p className="text-xs text-gray-400 italic mb-3">No notes yet.</p>
+          ) : (
+            <div className="space-y-2 mb-3 max-h-48 overflow-y-auto">
+              {notes.map((note) => (
+                <div key={note.id} className="bg-white rounded-lg p-3 border border-gray-200">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.note}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(note.created_at).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+          <form onSubmit={handleAddNote} className="flex gap-2">
+            <textarea
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              placeholder="Add internal note..."
+              rows={2}
+              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+            />
+            <Button type="submit" loading={addingNote} size="sm" className="self-end">
+              <Send size={14} />
+            </Button>
+          </form>
+        </div>
+
+        {/* Decision + Doc Request */}
+        <div className="space-y-4">
+          <div>
+            <h5 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Update Decision</h5>
+            <form onSubmit={handleExaminerStatusUpdate} className="space-y-3">
+              <Select
+                label="Status"
+                value={examinerStatus}
+                onChange={(e) => setExaminerStatus(e.target.value)}
+              >
+                <option value="">Select status...</option>
+                <option value="submitted">Submitted</option>
+                <option value="under_review">Under Review</option>
+                <option value="pending_docs">Pending Docs</option>
+                <option value="approved">Approved</option>
+                <option value="denied">Denied</option>
+                <option value="paid">Paid</option>
+              </Select>
+              {examinerStatus && ['approved', 'paid'].includes(examinerStatus) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount approved ($)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    value={amountApproved}
+                    onChange={(e) => setAmountApproved(e.target.value)}
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Decision rationale <span className="text-gray-400 font-normal">(internal, min 20 chars)</span>
+                </label>
+                <textarea
+                  required
+                  minLength={20}
+                  rows={3}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                  placeholder="Explain the basis for this decision..."
+                  value={rationale}
+                  onChange={(e) => setRationale(e.target.value)}
+                />
+                <p className="text-xs text-gray-400 mt-1">{rationale.length} / 20 chars minimum</p>
+              </div>
+              <Button
+                type="submit"
+                loading={updatingExaminer}
+                size="sm"
+                disabled={!examinerStatus || rationale.length < 20}
+              >
+                Update Status
+              </Button>
+            </form>
+          </div>
+
+          <div>
+            <h5 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Documentation</h5>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setShowDocModal(true)}
+            >
+              Request Documentation
+            </Button>
+
+            {showDocModal && (
+              <form onSubmit={handleDocRequest} className="mt-3 space-y-2">
+                <textarea
+                  required
+                  rows={3}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                  placeholder="What documentation is needed? (visible to claimant)"
+                  value={docRequest}
+                  onChange={(e) => setDocRequest(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <Button type="submit" loading={sendingDocRequest} size="sm">Send Request</Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => setShowDocModal(false)}>Cancel</Button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ClaimRow({ claim }: { claim: Claim & { agents?: { name: string } | null } }) {
   const [expanded, setExpanded] = useState(false)
   const [updating, setUpdating] = useState(false)
@@ -263,8 +520,12 @@ function ClaimRow({ claim }: { claim: Claim & { agents?: { name: string } | null
                 </div>
               )}
               <TriageResult result={claim.ai_triage_result as Record<string, unknown> | null} />
+
+              {/* Claims Examiner Panel */}
+              <ClaimsExaminerPanel claimId={claim.id} />
+
               <div className="border-t border-gray-200 pt-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Update status</h4>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Quick status update</h4>
                 <form onSubmit={handleStatusUpdate} className="flex gap-3 items-end flex-wrap">
                   <Select
                     label="New status"

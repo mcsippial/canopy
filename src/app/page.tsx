@@ -37,8 +37,7 @@ export default function HomePage() {
             <span className="text-[#5DCAA5]">Canopy makes sure your users don&apos;t pay for them.</span>
           </h1>
           <p className="text-xl text-white/70 mb-10 max-w-2xl mx-auto">
-            Liability coverage infrastructure for companies deploying autonomous AI agents.
-            Protect your business and your users in one policy.
+            Liability coverage infrastructure for companies deploying autonomous AI agents. Includes real-time MCP monitoring, deterministic underwriting, and AI-assisted claims triage.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -75,25 +74,31 @@ export default function HomePage() {
             <h2 className="text-4xl font-bold text-[#1a1a2e] mb-4">How Canopy works</h2>
             <p className="text-xl text-gray-600">From agent registration to claim resolution — automated and auditable.</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
               {
                 step: '01',
                 icon: <Zap size={28} className="text-[#5DCAA5]" />,
                 title: 'Register your agents',
-                desc: 'Tell us what your agents do and how they behave. Our AI risk scoring engine evaluates each agent and assigns a liability risk score.',
+                desc: 'Tell us what your agents do, which model they use, and how they are deployed.',
               },
               {
                 step: '02',
-                icon: <Users size={28} className="text-[#5DCAA5]" />,
-                title: 'Cover your users',
-                desc: 'Embed the Canopy trust badge so your users know they are protected. Show transparent coverage limits directly in your product.',
+                icon: <Shield size={28} className="text-[#5DCAA5]" />,
+                title: 'Get underwritten',
+                desc: 'Our deterministic rules engine evaluates each agent and issues coverage terms.',
               },
               {
                 step: '03',
+                icon: <Users size={28} className="text-[#5DCAA5]" />,
+                title: 'Monitor in real time',
+                desc: 'The Canopy MCP server logs every tool call against your policy parameters.',
+              },
+              {
+                step: '04',
                 icon: <FileText size={28} className="text-[#5DCAA5]" />,
-                title: 'Claims handled intelligently',
-                desc: 'Canopy triages claims using AI, routes them for human review, and keeps claimants informed with a real-time status page.',
+                title: 'Claims handled with evidence',
+                desc: 'When something goes wrong, the logs are already there. No relying on the customer to produce them.',
               },
             ].map((item) => (
               <div key={item.step} className="bg-white rounded-2xl p-8 border border-gray-200 relative">
@@ -105,6 +110,68 @@ export default function HomePage() {
                 <p className="text-gray-600 leading-relaxed">{item.desc}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Real-time agent monitoring */}
+      <section className="py-24 px-4 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-[#1a1a2e] mb-4">Real-time agent monitoring</h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Every tool call. Every action. Every anomaly. Logged before a claim is ever filed.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8 mb-16">
+            {[
+              {
+                title: 'Transparent proxy',
+                desc: 'The Canopy MCP server sits between your agent and its tools. No code changes required — just one config line.',
+              },
+              {
+                title: 'Policy enforcement',
+                desc: 'Every action is checked against your registered parameters in real time. Violations are flagged, logged, and escalated automatically.',
+              },
+              {
+                title: 'Evidence-first claims',
+                desc: 'When a claim is filed, the evidence is already in the system. No relying on the customer to produce logs.',
+              },
+            ].map((col) => (
+              <div key={col.title} className="bg-gray-50 rounded-2xl p-8 border border-gray-200">
+                <div className="bg-[#5DCAA5]/10 w-10 h-10 rounded-lg flex items-center justify-center mb-4">
+                  <Shield size={20} className="text-[#5DCAA5]" />
+                </div>
+                <h3 className="text-lg font-semibold text-[#1a1a2e] mb-3">{col.title}</h3>
+                <p className="text-gray-600 leading-relaxed">{col.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Code block */}
+          <div className="rounded-2xl overflow-hidden shadow-xl border border-[#0d1b2a]">
+            <div className="bg-[#0d1b2a] px-5 py-3 flex items-center gap-2 border-b border-white/10">
+              <div className="w-3 h-3 rounded-full bg-red-500/70" />
+              <div className="w-3 h-3 rounded-full bg-amber-500/70" />
+              <div className="w-3 h-3 rounded-full bg-green-500/70" />
+              <span className="ml-3 text-xs text-white/40 font-mono">claude_desktop_config.json</span>
+            </div>
+            <pre className="bg-[#0d1b2a] text-white/90 text-sm font-mono p-6 overflow-x-auto leading-relaxed">
+              <code>{`{
+  "mcpServers": {
+    `}<span className="text-[#5DCAA5]">&quot;my-tools&quot;</span>{`: {
+      `}<span className="text-[#5DCAA5]">&quot;command&quot;</span>{`: "canopy-mcp",
+      `}<span className="text-[#5DCAA5]">&quot;env&quot;</span>{`: {
+        `}<span className="text-[#5DCAA5]">&quot;CANOPY_AGENT_ID&quot;</span>{`: "your-agent-id",
+        `}<span className="text-[#5DCAA5]">&quot;CANOPY_API_KEY&quot;</span>{`: "your-api-key",
+        `}<span className="text-[#5DCAA5]">&quot;UPSTREAM_MCP_COMMAND&quot;</span>{`: "npx",
+        `}<span className="text-[#5DCAA5]">&quot;UPSTREAM_MCP_ARGS&quot;</span>{`: "-y @modelcontextprotocol/server-filesystem"
+      }
+    }
+  }
+}`}
+              </code>
+            </pre>
           </div>
         </div>
       </section>

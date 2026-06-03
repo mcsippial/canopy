@@ -235,6 +235,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Create in-app alert for new claim
+  await supabase.from('alerts').insert({
+    org_id: badge.org_id,
+    agent_id: parsed.data.agent_id || null,
+    alert_type: 'claim_submitted',
+    severity: 'warning',
+    title: `New claim submitted: ${claimNumber}`,
+    message: `${parsed.data.claimant_name} filed a claim for $${parsed.data.amount_claimed.toLocaleString()}.`,
+    action_url: '/dashboard/claims',
+    metadata: { claim_id: claim.id, claim_number: claimNumber },
+  })
+
   // Trigger AI triage (background)
   setImmediate(async () => {
     try {
