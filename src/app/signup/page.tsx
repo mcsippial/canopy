@@ -9,6 +9,22 @@ import { Logo } from '@/components/ui/Logo'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 50)
+}
+
+function generateEmbedKey(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let key = 'emb_'
+  for (let i = 0; i < 32; i++) key += chars[Math.floor(Math.random() * chars.length)]
+  return key
+}
+
 export default function SignupPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -23,33 +39,62 @@ export default function SignupPage() {
     e.preventDefault()
     setLoading(true)
     try {
-      // Step 1: Create account + org via API
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error || 'Signup failed')
-        return
-      }
-
-      // Step 2: Sign in with Supabase browser client to establish session cookies
       const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
+
+      // Step 1: Sign up
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: { data: { full_name: form.fullName } },
+      })
+      if (authError || !authData.user) {
+        toast.error(authError?.message || 'Signup failed')
+        return
+      }
+
+      // Step 2: Sign in immediately to establish session (needed for RLS)
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: form.email,
         password: form.password,
       })
-
       if (signInError) {
         toast.error('Account created but sign-in failed. Please log in manually.')
         router.push('/login')
         return
       }
+
+      // Step 3: Create organization
+      const slug = slugify(form.companyName) + '-' + Date.now()
+      const { data: org, error: orgError } = await supabase
+        .from('organizations')
+        .insert({ name: form.companyName, slug, plan: 'none' })
+        .select()
+        .single()
+      if (orgError || !org) {
+        toast.error('Failed to create organization: ' + (orgError?.message ?? 'unknown error'))
+        return
+      }
+
+      // Step 4: Create membership
+      const { error: memberError } = await supabase.from('organization_members').insert({
+        org_id: org.id,
+        user_id: authData.user.id,
+        role: 'owner',
+      })
+      if (memberError) {
+        toast.error('Failed to create membership: ' + memberError.message)
+        return
+      }
+
+      // Step 5: Create badge embed
+      await supabase.from('badge_embeds').insert({
+        org_id: org.id,
+        embed_key: generateEmbedKey(),
+        active: false,
+      })
 
       toast.success('Account created! Redirecting...')
       router.push('/dashboard')
