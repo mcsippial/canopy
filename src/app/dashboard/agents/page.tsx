@@ -8,6 +8,7 @@ import { Input, Textarea, Select } from '@/components/ui/Input'
 import { StatusPill } from '@/components/ui/StatusPill'
 import type { Agent } from '@/types'
 import type { UnderwritingDecision } from '@/lib/underwriting'
+import type { AgentMonitoringStats } from '@/app/api/agents/monitoring-stats/route'
 
 const AI_MODELS = [
   { label: 'GPT-4o', value: 'gpt-4o', provider: 'openai' },
@@ -19,6 +20,58 @@ const AI_MODELS = [
   { label: 'Mistral Large', value: 'mistral-large-latest', provider: 'mistral' },
   { label: 'Other', value: 'other', provider: 'other' },
 ]
+
+function MonitoringDot({ status, lastSeenAt, actionsToday, violationsCount }: {
+  status: AgentMonitoringStats['monitoringStatus'] | undefined
+  lastSeenAt: string | null | undefined
+  actionsToday: number | undefined
+  violationsCount: number | undefined
+}) {
+  const colors = {
+    green: 'bg-green-500',
+    yellow: 'bg-amber-400',
+    red: 'bg-red-500',
+  }
+  const labels = {
+    green: 'Active, no violations',
+    yellow: 'Violations detected or not recently seen',
+    red: 'Blocked actions or suspended',
+  }
+
+  const formatRelative = (ts: string | null | undefined) => {
+    if (!ts) return 'Never'
+    const diff = Date.now() - new Date(ts).getTime()
+    if (diff < 60_000) return 'Just now'
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
+    return `${Math.floor(diff / 86_400_000)}d ago`
+  }
+
+  const dotColor = status ? colors[status] : 'bg-gray-300'
+  const label = status ? labels[status] : 'No monitoring data'
+
+  const tooltip = [
+    label,
+    `Last seen: ${formatRelative(lastSeenAt)}`,
+    actionsToday !== undefined ? `Actions today: ${actionsToday}` : null,
+    violationsCount !== undefined && violationsCount > 0 ? `Violations: ${violationsCount}` : null,
+  ].filter(Boolean).join('\n')
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 text-xs text-gray-500`}
+      title={tooltip}
+    >
+      <span className={`w-2 h-2 rounded-full inline-block ${dotColor}`} />
+      {actionsToday !== undefined ? (
+        <span>{actionsToday} today</span>
+      ) : null}
+      {violationsCount !== undefined && violationsCount > 0 ? (
+        <span className="text-amber-600 font-medium">{violationsCount} violations</span>
+      ) : null}
+    </span>
+  )
+}
 
 function RiskScore({ score }: { score: number | undefined | null }) {
   if (score === null || score === undefined) return <span className="text-gray-400 text-sm">Pending</span>
@@ -232,6 +285,7 @@ const defaultForm: FormState = {
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [underwritings, setUnderwritings] = useState<Record<string, UnderwritingRecord>>({})
+  const [monitoringStats, setMonitoringStats] = useState<Record<string, AgentMonitoringStats>>({})
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -251,6 +305,16 @@ export default function AgentsPage() {
     }
   }
 
+  const fetchMonitoringStats = useCallback(async () => {
+    const res = await fetch('/api/agents/monitoring-stats')
+    if (res.ok) {
+      const data: AgentMonitoringStats[] = await res.json()
+      const statsMap: Record<string, AgentMonitoringStats> = {}
+      for (const s of data) statsMap[s.agentId] = s
+      setMonitoringStats(statsMap)
+    }
+  }, [])
+
   const fetchAgents = useCallback(async () => {
     const res = await fetch('/api/agents')
     if (res.ok) {
@@ -263,6 +327,7 @@ export default function AgentsPage() {
       }
     }
     setLoading(false)
+    fetchMonitoringStats()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -412,12 +477,14 @@ export default function AgentsPage() {
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Underwriting</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Sublimit</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Status</th>
+                <th className="text-left px-6 py-3 font-medium text-gray-600">Monitoring</th>
                 <th className="px-6 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {agents.map((agent) => {
                 const uw = underwritings[agent.id] ?? null
+                const mStats = monitoringStats[agent.id]
                 return (
                   <>
                     <tr
@@ -462,6 +529,14 @@ export default function AgentsPage() {
                           : <span className="text-gray-400">—</span>}
                       </td>
                       <td className="px-6 py-4"><StatusPill status={agent.status} /></td>
+                      <td className="px-6 py-4">
+                        <MonitoringDot
+                          status={mStats?.monitoringStatus}
+                          lastSeenAt={mStats?.lastSeenAt}
+                          actionsToday={mStats?.actionsToday}
+                          violationsCount={mStats?.violationsCount}
+                        />
+                      </td>
                       <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => handleRescore(agent.id)}
@@ -477,7 +552,7 @@ export default function AgentsPage() {
                     </tr>
                     {expandedAgent === agent.id && uw && (
                       <tr key={`${agent.id}-detail`}>
-                        <td colSpan={8} className="px-6 pb-4">
+                        <td colSpan={9} className="px-6 pb-4">
                           <UnderwritingResultCard underwriting={uw} />
                         </td>
                       </tr>
